@@ -17,38 +17,6 @@
             });
         });
     </script>
-
-    <!-- OneSignal Subscribe Button (Fallback) -->
-<button id="onesignal-subscribe" style="display:none;background:#25d366;color:white;padding:12px 24px;border:none;border-radius:12px;font-size:16px;cursor:pointer;">
-    🔔 Enable Notifications
-</button>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Check if OneSignal is available
-        if (window.OneSignalDeferred) {
-            window.OneSignalDeferred.push(async function(OneSignal) {
-                // Check if notifications are already enabled
-                const isSubscribed = await OneSignal.isPushNotificationsEnabled();
-                
-                if (!isSubscribed) {
-                    // Show subscribe button
-                    const btn = document.getElementById('onesignal-subscribe');
-                    btn.style.display = 'block';
-                    btn.onclick = async function() {
-                        try {
-                            await OneSignal.registerForPushNotifications();
-                            btn.textContent = '✅ Subscribed!';
-                            btn.style.background = '#4caf50';
-                        } catch(e) {
-                            alert('Failed to enable notifications: ' + e.message);
-                        }
-                    };
-                }
-            });
-        }
-    });
-</script>
     <style>
         * {
             margin: 0;
@@ -196,8 +164,9 @@
         }
 
         .chat-header .avatar {
-            width: 38px;
-            height: 38px;
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
             border-radius: 50%;
             overflow: hidden;
             flex-shrink: 0;
@@ -219,28 +188,29 @@
         .chat-header .info .name {
             color: #fff;
             font-weight: 600;
-            font-size: 15px;
+            font-size: 16px;
             white-space: nowrap;
         }
 
         .chat-header .info .status {
             color: #25d366;
-            font-size: 11px;
+            font-size: 12px;
         }
 
         .chat-header .header-actions {
             display: flex;
             gap: 6px;
             flex-shrink: 0;
+            padding: 4px 0;
         }
 
         .chat-header .header-actions button {
             background: transparent;
             border: none;
             color: #8898aa;
-            font-size: 18px;
+            font-size: 22px;
             cursor: pointer;
-            padding: 4px 6px;
+            padding: 8px 12px;
             transition: color 0.3s;
             -webkit-appearance: none;
             appearance: none;
@@ -248,6 +218,36 @@
 
         .chat-header .header-actions button:active {
             color: #ff6b6b;
+        }
+
+        /* OneSignal Prompt */
+        #onesignal-prompt {
+            display: none;
+            padding: 10px 14px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        #onesignal-prompt.show {
+            display: block;
+        }
+
+        #onesignal-subscribe {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #25d366, #128c7e);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        #onesignal-subscribe:active {
+            transform: scale(0.98);
         }
 
         .messages-container {
@@ -1002,17 +1002,24 @@
         <!-- Chat Interface -->
         <div class="chat-interface" id="chatInterface">
             <div class="chat-header">
-    <div class="avatar" onclick="openProfile()" style="width:44px;height:44px;min-width:44px;">
-        <img src="https://i.postimg.cc/1Rgpzyy3/ig.png" alt="Admin Support">
-    </div>
-    <div class="info" onclick="openProfile()">
-        <div class="name" style="font-size:16px;">Admin Support</div>
-        <div class="status" id="onlineStatus" style="font-size:12px;">Online</div>
-    </div>
-    <div class="header-actions" style="padding:4px 0;">
-        <button onclick="logout()" title="Logout" style="font-size:22px;padding:8px 12px;">✕</button>
-    </div>
-</div>
+                <div class="avatar" onclick="openProfile()">
+                    <img src="https://i.postimg.cc/1Rgpzyy3/ig.png" alt="Admin Support">
+                </div>
+                <div class="info" onclick="openProfile()">
+                    <div class="name">Admin Support</div>
+                    <div class="status" id="onlineStatus">Online</div>
+                </div>
+                <div class="header-actions">
+                    <button onclick="logout()" title="Logout">✕</button>
+                </div>
+            </div>
+
+            <!-- OneSignal Subscribe Button -->
+            <div id="onesignal-prompt">
+                <button id="onesignal-subscribe" onclick="subscribeToNotifications()">
+                    🔔 Enable Notifications
+                </button>
+            </div>
 
             <!-- Messages -->
             <div class="messages-container" id="messagesContainer">
@@ -1128,6 +1135,30 @@
                 window.OneSignalDeferred.push(async function(OneSignal) {
                     await OneSignal.login(userId);
                     console.log('🔔 Push notifications enabled for user:', userId);
+                    
+                    // Check subscription and show/hide button
+                    const isSubscribed = await OneSignal.isPushNotificationsEnabled();
+                    const prompt = document.getElementById('onesignal-prompt');
+                    if (!isSubscribed) {
+                        prompt.classList.add('show');
+                    } else {
+                        prompt.classList.remove('show');
+                    }
+                });
+            }
+        }
+
+        function subscribeToNotifications() {
+            if (window.OneSignalDeferred) {
+                window.OneSignalDeferred.push(async function(OneSignal) {
+                    try {
+                        await OneSignal.registerForPushNotifications();
+                        document.getElementById('onesignal-prompt').classList.remove('show');
+                        document.getElementById('onesignal-subscribe').textContent = '✅ Notifications Enabled';
+                        document.getElementById('onesignal-subscribe').style.background = '#4caf50';
+                    } catch(e) {
+                        alert('Failed to enable notifications: ' + e.message);
+                    }
                 });
             }
         }
