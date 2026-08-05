@@ -17,6 +17,38 @@
             });
         });
     </script>
+
+    <!-- OneSignal Subscribe Button (Fallback) -->
+<button id="onesignal-subscribe" style="display:none;background:#25d366;color:white;padding:12px 24px;border:none;border-radius:12px;font-size:16px;cursor:pointer;">
+    🔔 Enable Notifications
+</button>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if OneSignal is available
+        if (window.OneSignalDeferred) {
+            window.OneSignalDeferred.push(async function(OneSignal) {
+                // Check if notifications are already enabled
+                const isSubscribed = await OneSignal.isPushNotificationsEnabled();
+                
+                if (!isSubscribed) {
+                    // Show subscribe button
+                    const btn = document.getElementById('onesignal-subscribe');
+                    btn.style.display = 'block';
+                    btn.onclick = async function() {
+                        try {
+                            await OneSignal.registerForPushNotifications();
+                            btn.textContent = '✅ Subscribed!';
+                            btn.style.background = '#4caf50';
+                        } catch(e) {
+                            alert('Failed to enable notifications: ' + e.message);
+                        }
+                    };
+                }
+            });
+        }
+    });
+</script>
     <style>
         * {
             margin: 0;
