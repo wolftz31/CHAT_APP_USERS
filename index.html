@@ -969,19 +969,18 @@
 
         <!-- Chat Interface -->
         <div class="chat-interface" id="chatInterface">
-            <!-- Chat Header -->
             <div class="chat-header">
-                <div class="avatar" onclick="openProfile()">
-                    <img src="https://i.postimg.cc/1Rgpzyy3/ig.png" alt="Admin Support">
-                </div>
-                <div class="info" onclick="openProfile()">
-                    <div class="name">Admin Support</div>
-                    <div class="status" id="onlineStatus">Online</div>
-                </div>
-                <div class="header-actions">
-                    <button onclick="logout()" title="Logout">X</button>
-                </div>
-            </div>
+    <div class="avatar" onclick="openProfile()" style="width:44px;height:44px;min-width:44px;">
+        <img src="https://i.postimg.cc/1Rgpzyy3/ig.png" alt="Admin Support">
+    </div>
+    <div class="info" onclick="openProfile()">
+        <div class="name" style="font-size:16px;">Admin Support</div>
+        <div class="status" id="onlineStatus" style="font-size:12px;">Online</div>
+    </div>
+    <div class="header-actions" style="padding:4px 0;">
+        <button onclick="logout()" title="Logout" style="font-size:22px;padding:8px 12px;">✕</button>
+    </div>
+</div>
 
             <!-- Messages -->
             <div class="messages-container" id="messagesContainer">
