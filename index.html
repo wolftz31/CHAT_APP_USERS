@@ -912,14 +912,15 @@
         }
 
         /* ====== CHAT BACKGROUND IMAGE ====== */
-        .messages-container {
-            background-image: url('https://i.postimg.cc/6qqzF8HD/file-0000000056e88243b3ed55835552e8a8.png') !important;
-            background-size: cover !important;
-            background-position: center !important;
-            background-repeat: no-repeat !important;
-            background-attachment: fixed !important;
-            position: relative;
-        }
+        /* ====== CHAT BACKGROUND IMAGE ====== */
+.messages-container {
+    /* REMOVE the background-image url() line here! Let the JS handle it */
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    background-attachment: fixed !important;
+    position: relative;
+}
 
         .messages-container::before {
             content: '';
@@ -1005,7 +1006,7 @@
         <div class="chat-interface" id="chatInterface">
             <div class="chat-header">
                 <div class="avatar" onclick="openProfile()">
-                    <img src="https://i.postimg.cc/1Rgpzyy3/ig.png" alt="Admin Support">
+                    <img src="" id="headerAvatar" alt="Admin Support">
                 </div>
                 <div class="info" onclick="openProfile()">
                     <div class="name">Admin Support</div>
@@ -1063,7 +1064,7 @@
             <button class="close-btn" onclick="closeProfile()">✕</button>
             
             <div class="profile-image">
-                <img src="https://i.postimg.cc/VNzQSFZk/JPEG-20260506-131740-5426928668260112033.jpg" alt="Admin Support">
+                <img src="" id="profileAvatar" alt="Admin Support">
             </div>
             
             <div class="profile-name">Admin Support</div>
@@ -1103,6 +1104,24 @@
     </div>
 
     <script>
+    // Detect if running inside an Android WebView APK
+const isLocalApp = navigator.userAgent.includes('wv') || window.location.protocol === 'file:';
+
+// Define asset paths
+const ASSET_BG = isLocalApp ? 'file:///android_asset/bg.png' : 'https://i.postimg.cc/6qqzF8HD/file-0000000056e88243b3ed55835552e8a8.png';
+const ASSET_AVATAR = isLocalApp ? 'file:///android_asset/header.png' : 'https://i.postimg.cc/1Rgpzyy3/ig.png';
+const ASSET_PROFILE = isLocalApp ? 'file:///android_asset/profile.png' : 'https://i.postimg.cc/VNzQSFZk/JPEG-20260506-131740-5426928668260112033.jpg';
+
+
+    // Set images dynamically on page load
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('headerAvatar').src = ASSET_AVATAR;
+    document.getElementById('profileAvatar').src = ASSET_PROFILE;
+    
+    // Apply background to messages container dynamically
+    document.getElementById('messagesContainer').style.backgroundImage = `url('${ASSET_BG}')`;
+});
+    
         // ============================================================
         // FIREBASE CONFIG
         // ============================================================
