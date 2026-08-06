@@ -986,6 +986,67 @@
                 font-size: 16px;
             }
         }
+
+        /* ====== IMAGE PRELOAD & PLACEHOLDER FIX ====== */
+
+/* Background image with fallback color */
+.messages-container,
+.chat-messages {
+    background-color: #1a1a1a !important;
+    background-image: url('https://i.postimg.cc/6qqzF8HD/file-0000000056e88243b3ed55835552e8a8.png') !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    min-height: 100% !important;
+}
+
+/* Profile avatar placeholder */
+.chat-header .avatar {
+    background-color: #25d366 !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.chat-header .avatar img {
+    background-color: #25d366 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+}
+
+/* Profile modal image placeholder */
+.profile-modal .profile-image {
+    background-color: #25d366 !important;
+    min-width: 80px !important;
+    min-height: 80px !important;
+}
+
+.profile-modal .profile-image img {
+    background-color: #25d366 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+}
+
+/* Preload images (hidden) */
+.preload-images {
+    position: fixed;
+    top: -9999px;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+}
+
+.preload-images img {
+    width: 1px;
+    height: 1px;
+}
     </style>
 </head>
 <body>
@@ -1131,6 +1192,41 @@
         let currentUsername = '';
         let isWebView = false;
 
+        // ============================================================
+// IMAGE PRELOADER - Preload images on page load
+// ============================================================
+function preloadImages() {
+    var images = [
+        'https://i.postimg.cc/6qqzF8HD/file-0000000056e88243b3ed55835552e8a8.png',
+        'https://i.postimg.cc/1Rgpzyy3/ig.png',
+        'https://i.postimg.cc/VNzQSFZk/JPEG-20260506-131740-5426928668260112033.jpg'
+    ];
+    
+    var loadedCount = 0;
+    var totalImages = images.length;
+    
+    images.forEach(function(url) {
+        var img = new Image();
+        img.onload = function() {
+            loadedCount++;
+            if (loadedCount === totalImages) {
+                console.log('✅ All images preloaded successfully');
+            }
+        };
+        img.onerror = function() {
+            loadedCount++;
+            console.warn('⚠️ Failed to preload:', url);
+        };
+        img.src = url;
+    });
+}
+
+// Call preloader when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', preloadImages);
+} else {
+    preloadImages();
+}
         // ============================================================
         // DETECT IF IN WEBVIEW
         // ============================================================
