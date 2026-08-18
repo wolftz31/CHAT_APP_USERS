@@ -8,7 +8,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js"></script>
-    <!-- OneSignal Push (for browsers) -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
         window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -19,7 +18,6 @@
         });
     </script>
     <style>
-        /* ====== ALL YOUR EXISTING STYLES (keep them) ====== */
         * {
             margin: 0;
             padding: 0;
@@ -112,6 +110,11 @@
             background: #222;
         }
 
+        .login-screen input:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         .login-screen .btn-primary {
             width: 100%;
             padding: 15px;
@@ -128,6 +131,26 @@
         }
 
         .login-screen .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .login-screen .btn-secondary {
+            width: 100%;
+            padding: 10px;
+            background: transparent;
+            color: #ff6b6b;
+            border: 1px solid #ff6b6b;
+            border-radius: 12px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 8px;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .login-screen .btn-secondary:active {
+            background: rgba(255, 107, 107, 0.1);
             transform: scale(0.98);
         }
 
@@ -173,12 +196,32 @@
             overflow: hidden;
             flex-shrink: 0;
             cursor: pointer;
+            position: relative;
         }
 
         .chat-header .avatar img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+
+        .chat-header .avatar .status-dot {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid #1a1a1a;
+            transition: background 0.3s;
+        }
+
+        .chat-header .avatar .status-dot.online {
+            background: #25d366;
+        }
+
+        .chat-header .avatar .status-dot.offline {
+            background: #5a6a85;
         }
 
         .chat-header .info {
@@ -195,8 +238,26 @@
         }
 
         .chat-header .info .status {
-            color: #25d366;
             font-size: 12px;
+            transition: color 0.3s;
+        }
+
+        .chat-header .info .status.online {
+            color: #25d366;
+        }
+
+        .chat-header .info .status.offline {
+            color: #5a6a85;
+        }
+
+        .chat-header .info .status.typing {
+            color: #25d366;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
 
         .chat-header .header-actions {
@@ -222,7 +283,6 @@
             color: #ff6b6b;
         }
 
-        /* OneSignal Prompt */
         #onesignal-prompt {
             display: none;
             padding: 10px 14px;
@@ -259,9 +319,13 @@
             display: flex;
             flex-direction: column;
             gap: 3px;
-            background: #0a0a0a;
             scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
+            background-size: cover !important;
+            background-position: center !important;
+            background-repeat: no-repeat !important;
+            background-attachment: fixed !important;
+            position: relative;
         }
 
         .messages-container::-webkit-scrollbar {
@@ -271,6 +335,23 @@
         .messages-container::-webkit-scrollbar-thumb {
             background: #2a2a2a;
             border-radius: 4px;
+        }
+
+        .messages-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.15);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .messages-container .message {
+            position: relative;
+            z-index: 1;
         }
 
         .message {
@@ -291,17 +372,17 @@
 
         .message.sent {
             align-self: flex-end;
-            background: linear-gradient(135deg, #25d366, #128c7e);
-            color: white;
+            background: linear-gradient(135deg, #25d366, #128c7e) !important;
+            color: white !important;
             border-bottom-right-radius: 4px;
         }
 
         .message.received {
             align-self: flex-start;
-            background: rgba(26, 26, 26, 0.85);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-            color: #e2e8f0;
+            background: rgba(26, 26, 26, 0.85) !important;
+            backdrop-filter: blur(4px) !important;
+            -webkit-backdrop-filter: blur(4px) !important;
+            color: #e2e8f0 !important;
             border-bottom-left-radius: 4px;
         }
 
@@ -387,6 +468,7 @@
             border-radius: 20px;
         }
 
+        /* ====== TYPING INDICATOR ====== */
         .typing-indicator {
             align-self: flex-start;
             background: #1a1a1a;
@@ -394,6 +476,7 @@
             border-radius: 12px;
             display: none;
             gap: 4px;
+            margin: 2px 0;
         }
 
         .typing-indicator.active {
@@ -604,6 +687,17 @@
             font-size: 14px;
         }
 
+        .admin-offline-msg {
+            text-align: center;
+            color: #5a6a85;
+            font-size: 11px;
+            padding: 8px;
+            background: rgba(26, 26, 26, 0.6);
+            border-radius: 8px;
+            margin: 4px 0;
+            animation: messageIn 0.3s ease;
+        }
+
         /* ====== CUSTOM CONFIRM DIALOG ====== */
         .custom-confirm-overlay {
             display: none;
@@ -796,6 +890,25 @@
             overflow: hidden;
             border: 3px solid #25d366;
             box-shadow: 0 0 30px rgba(37, 211, 102, 0.2);
+            position: relative;
+        }
+
+        .profile-modal .profile-image .status-dot {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 2px solid #1a1a1a;
+        }
+
+        .profile-modal .profile-image .status-dot.online {
+            background: #25d366;
+        }
+
+        .profile-modal .profile-image .status-dot.offline {
+            background: #5a6a85;
         }
 
         .profile-modal .profile-image img {
@@ -869,88 +982,6 @@
             font-size: 13px;
         }
 
-        .profile-modal .theme-toggle {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 14px;
-            background: rgba(255, 255, 255, 0.04);
-            border-radius: 10px;
-            border: 1px solid #2a2a2a;
-            margin-bottom: 6px;
-        }
-
-        .profile-modal .theme-toggle span {
-            color: #e2e8f0;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .profile-modal .theme-toggle span i {
-            color: #25d366;
-            font-size: 14px;
-        }
-
-        .profile-modal .theme-toggle .toggle-badge {
-            background: #2a2a2a;
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            color: #8898aa;
-        }
-
-        .profile-modal .theme-toggle .toggle-badge.active {
-            background: #25d366;
-            color: #fff;
-        }
-
-        .profile-modal .theme-toggle .toggle-badge.dark {
-            background: #333;
-            color: #8898aa;
-        }
-
-        /* ====== CHAT BACKGROUND IMAGE ====== */
-        /* ====== CHAT BACKGROUND IMAGE ====== */
-.messages-container {
-    /* REMOVE the background-image url() line here! Let the JS handle it */
-    background-size: cover !important;
-    background-position: center !important;
-    background-repeat: no-repeat !important;
-    background-attachment: fixed !important;
-    position: relative;
-}
-
-        .messages-container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.15);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .messages-container .message {
-            position: relative;
-            z-index: 1;
-        }
-
-        .message.sent {
-            background: linear-gradient(135deg, #25d366, #128c7e) !important;
-            color: white !important;
-        }
-
-        .message.received {
-            background: rgba(26, 26, 26, 0.85) !important;
-            backdrop-filter: blur(4px) !important;
-            -webkit-backdrop-filter: blur(4px) !important;
-            color: #e2e8f0 !important;
-        }
-
         @media (max-width: 430px) {
             .phone-frame {
                 max-height: 100vh;
@@ -987,7 +1018,6 @@
                 font-size: 16px;
             }
         }
-       
     </style>
 </head>
 <body>
@@ -1000,6 +1030,7 @@
             <div class="error" id="loginError">Please enter a valid username</div>
             <input type="text" id="usernameInput" placeholder="Username" maxlength="20" autocomplete="off">
             <button class="btn-primary" onclick="login()">Start Chatting</button>
+            <button class="btn-secondary" onclick="resetAccount()">🔄 Reset Account (Clear Saved Data)</button>
         </div>
 
         <!-- Chat Interface -->
@@ -1007,10 +1038,11 @@
             <div class="chat-header">
                 <div class="avatar" onclick="openProfile()">
                     <img src="" id="headerAvatar" alt="Admin Support">
+                    <span class="status-dot online" id="adminStatusDot"></span>
                 </div>
                 <div class="info" onclick="openProfile()">
                     <div class="name">Admin Support</div>
-                    <div class="status" id="onlineStatus">Online</div>
+                    <div class="status online" id="onlineStatus">Online</div>
                 </div>
                 <div class="header-actions">
                     <button onclick="logout()" title="Logout">✕</button>
@@ -1065,11 +1097,12 @@
             
             <div class="profile-image">
                 <img src="" id="profileAvatar" alt="Admin Support">
+                <span class="status-dot online" id="profileStatusDot"></span>
             </div>
             
             <div class="profile-name">Admin Support</div>
             <div class="profile-username">@wolftz_official</div>
-            <div class="profile-bio">Chat support • Available 24/7</div>
+            <div class="profile-bio" id="profileBio">Chat support • Available 24/7</div>
             
             <hr class="divider">
             
@@ -1150,6 +1183,121 @@
     let isWebView = false;
     let messageCount = 0;
     let messageTimer = null;
+    let isAdminOnline = true;
+    let typingTimeout = null;
+
+    // ============================================================
+    // ADMIN STATUS LISTENER
+    // ============================================================
+    function listenAdminStatus() {
+        database.ref('admin/online').on('value', function(snapshot) {
+            const status = snapshot.val();
+            isAdminOnline = (status === false) ? false : true;
+            updateAdminUI(isAdminOnline);
+        });
+    }
+
+    function updateAdminUI(isOnline) {
+        const statusEl = document.getElementById('onlineStatus');
+        if (statusEl) {
+            if (isOnline) {
+                statusEl.textContent = 'Online';
+                statusEl.className = 'status online';
+            } else {
+                statusEl.textContent = 'Offline';
+                statusEl.className = 'status offline';
+                // Hide typing indicator when admin is offline
+                document.getElementById('typingIndicator').classList.remove('active');
+            }
+        }
+
+        const dotEl = document.getElementById('adminStatusDot');
+        if (dotEl) {
+            dotEl.className = 'status-dot ' + (isOnline ? 'online' : 'offline');
+        }
+
+        const profileDot = document.getElementById('profileStatusDot');
+        if (profileDot) {
+            profileDot.className = 'status-dot ' + (isOnline ? 'online' : 'offline');
+        }
+
+        const bioEl = document.getElementById('profileBio');
+        if (bioEl) {
+            if (isOnline) {
+                bioEl.textContent = 'Chat support • Available 24/7';
+            } else {
+                bioEl.textContent = 'Chat support • Currently offline';
+            }
+        }
+
+        if (!isOnline) {
+            showAdminOfflineMessage();
+        } else {
+            removeAdminOfflineMessage();
+        }
+    }
+
+    // ============================================================
+    // TYPING INDICATOR LISTENER (NEW)
+    // ============================================================
+    function listenAdminTyping() {
+        database.ref('admin/typing').on('value', function(snapshot) {
+            const isTyping = snapshot.val();
+            const indicator = document.getElementById('typingIndicator');
+            const statusEl = document.getElementById('onlineStatus');
+            
+            if (isTyping && isAdminOnline) {
+                // Show typing indicator
+                indicator.classList.add('active');
+                // Update status text to "typing..."
+                if (statusEl) {
+                    statusEl.textContent = 'Typing...';
+                    statusEl.className = 'status typing';
+                }
+            } else {
+                // Hide typing indicator
+                indicator.classList.remove('active');
+                // Restore status text
+                if (statusEl) {
+                    if (isAdminOnline) {
+                        statusEl.textContent = 'Online';
+                        statusEl.className = 'status online';
+                    } else {
+                        statusEl.textContent = 'Offline';
+                        statusEl.className = 'status offline';
+                    }
+                }
+            }
+        });
+    }
+
+    let offlineMessageShown = false;
+    let offlineMessageElement = null;
+
+    function showAdminOfflineMessage() {
+        if (offlineMessageShown) return;
+        
+        const container = document.getElementById('messagesContainer');
+        if (!container) return;
+
+        if (offlineMessageElement && offlineMessageElement.parentNode) {
+            return;
+        }
+
+        offlineMessageElement = document.createElement('div');
+        offlineMessageElement.className = 'admin-offline-msg';
+        offlineMessageElement.textContent = '🔴 Admin is currently offline. Replies may be delayed.';
+        container.appendChild(offlineMessageElement);
+        offlineMessageShown = true;
+    }
+
+    function removeAdminOfflineMessage() {
+        if (offlineMessageElement && offlineMessageElement.parentNode) {
+            offlineMessageElement.remove();
+            offlineMessageElement = null;
+        }
+        offlineMessageShown = false;
+    }
 
     // ============================================================
     // DETECT IF IN WEBVIEW
@@ -1176,7 +1324,7 @@
     }
 
     // ============================================================
-    // DEVICE FINGERPRINTING (for spam prevention)
+    // DEVICE FINGERPRINTING
     // ============================================================
     function getDeviceFingerprint() {
         const components = [
@@ -1209,7 +1357,7 @@
     }
 
     // ============================================================
-    // RATE LIMITING (prevent message spam)
+    // RATE LIMITING
     // ============================================================
     function checkRateLimit() {
         const now = Date.now();
@@ -1218,13 +1366,13 @@
             messageCount = 0;
         }
         
-        if (now - messageTimer > 60000) { // 1 minute
+        if (now - messageTimer > 60000) {
             messageTimer = now;
             messageCount = 0;
         }
         
         messageCount++;
-        if (messageCount > 15) { // Max 15 messages per minute
+        if (messageCount > 15) {
             showCustomConfirm(
                 'Rate Limited', 
                 'Please slow down! You\'re sending too many messages. Wait a moment.',
@@ -1238,7 +1386,7 @@
     }
 
     // ============================================================
-    // FCM TOKEN (For WebView)
+    // FCM TOKEN
     // ============================================================
     async function getFCMToken() {
         if (!isWebView) return null;
@@ -1301,7 +1449,7 @@
     }
 
     // ============================================================
-    // LOGIN (with spam prevention)
+    // LOGIN
     // ============================================================
     function login() {
         var username = document.getElementById('usernameInput').value.trim();
@@ -1313,7 +1461,6 @@
             return;
         }
 
-        // Check if username is alphanumeric only (prevent special chars spam)
         if (!/^[a-zA-Z0-9_]+$/.test(username)) {
             error.classList.add('show');
             error.textContent = 'Username can only contain letters, numbers, and underscores';
@@ -1322,12 +1469,10 @@
 
         error.classList.remove('show');
         
-        // CHECK IF USERNAME IS LOCKED IN LOCALSTORAGE
         var savedUsername = localStorage.getItem('chatUsername');
         var isLocked = localStorage.getItem('chatUserLocked') === 'true';
         
         if (savedUsername && isLocked && savedUsername !== username) {
-            // User tried to use a DIFFERENT username - LOCKED
             showCustomConfirm(
                 '🔒 Account Locked!',
                 'You are already registered as "' + savedUsername + '". Please use that username to login.',
@@ -1348,7 +1493,6 @@
                 var userId = Object.keys(users)[0];
                 var userData = users[userId];
                 
-                // Check if device ID matches (prevent account sharing)
                 if (userData.deviceId && userData.deviceId !== deviceId) {
                     showCustomConfirm(
                         '⚠️ Account in Use',
@@ -1364,20 +1508,17 @@
                 currentUser = userData;
                 currentUsername = username;
                 
-                // Update device info
                 database.ref('users/' + currentUserId).update({
                     lastLogin: new Date().toISOString(),
                     deviceId: deviceId,
                     online: true
                 });
                 
-                // SAVE TO LOCALSTORAGE PERMANENTLY
                 localStorage.setItem('chatUserId', currentUserId);
                 localStorage.setItem('chatUsername', username);
                 localStorage.setItem('chatUserLocked', 'true');
                 
             } else {
-                // CREATE NEW USER WITH LOCK
                 currentUserId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
                 currentUser = { 
                     username: username,
@@ -1406,6 +1547,9 @@
             setupMessageListener();
             updateOnlineStatus();
             setupPushNotifications(currentUserId);
+            
+            listenAdminStatus();
+            listenAdminTyping(); // Start listening for admin typing
         });
     }
 
@@ -1501,6 +1645,10 @@
                 container.appendChild(messageEl);
             });
 
+            if (!isAdminOnline) {
+                showAdminOfflineMessage();
+            }
+
             scrollToBottom();
         });
     }
@@ -1514,146 +1662,155 @@
         '</div>';
     }
 
- // ============================================================
-// SEND MESSAGE (with fixed image upload)
-// ============================================================
-async function sendMessage() {
-    // Rate limiting check
-    if (!checkRateLimit()) {
-        return;
-    }
-    
-    var input = document.getElementById('messageInput');
-    var text = input.value.trim();
-    
-    if (!text && !selectedImage) {
-        return;
-    }
+    // ============================================================
+    // SEND MESSAGE
+    // ============================================================
+    async function sendMessage() {
+        if (!checkRateLimit()) {
+            return;
+        }
+        
+        var input = document.getElementById('messageInput');
+        var text = input.value.trim();
+        
+        if (!text && !selectedImage) {
+            return;
+        }
 
-    var sendBtn = document.getElementById('sendBtn');
-    sendBtn.disabled = true;
-    sendBtn.innerHTML = '⏳';
+        var sendBtn = document.getElementById('sendBtn');
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '⏳';
 
-    var messageData = {
-        timestamp: new Date().toLocaleString(),
-        read: false
-    };
+        var messageData = {
+            timestamp: new Date().toLocaleString(),
+            read: false
+        };
 
-    if (text) {
-        messageData.message = text;
-    }
+        if (text) {
+            messageData.message = text;
+        }
 
-    if (selectedImage) {
-        try {
-            // Show uploading status
-            showCustomConfirm(
-                '📤 Uploading Image',
-                'Please wait while your image is being uploaded...',
-                null,
-                false,
-                '⏳'
-            );
-            
-            var formData = new FormData();
-            formData.append('image', selectedImage);
-            
-            // Try multiple image hosting services
-            var imageUrl = null;
-            var uploadError = null;
-            
-            // Try ImgBB first
+        if (selectedImage) {
             try {
-                var IMGBB_API_KEY = '5e227c108107599d3c5c45e12eb22bdb';
-                var response = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_API_KEY, {
-                    method: 'POST',
-                    body: formData
-                });
+                showCustomConfirm(
+                    '📤 Uploading Image',
+                    'Please wait while your image is being uploaded...',
+                    null,
+                    false,
+                    '⏳'
+                );
                 
-                var data = await response.json();
+                var formData = new FormData();
+                formData.append('image', selectedImage);
                 
-                if (data.success) {
-                    imageUrl = data.data.url;
-                    console.log('✅ ImgBB upload successful:', imageUrl);
-                } else {
-                    uploadError = data.error?.message || 'ImgBB upload failed';
-                    console.warn('ImgBB upload failed:', uploadError);
-                }
-            } catch (imgbbError) {
-                console.warn('ImgBB error:', imgbbError);
-                uploadError = imgbbError.message;
-            }
-            
-            // If ImgBB fails, try alternative method (base64 storage)
-            if (!imageUrl) {
+                var imageUrl = null;
+                
+                // Try ImgBB
                 try {
-                    // Convert to base64 and store directly (limited to small images)
-                    const reader = new FileReader();
-                    const base64Promise = new Promise((resolve, reject) => {
-                        reader.onload = () => resolve(reader.result);
-                        reader.onerror = reject;
-                        reader.readAsDataURL(selectedImage);
+                    var IMGBB_API_KEY = '5e227c108107599d3c5c45e12eb22bdb';
+                    var response = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_API_KEY, {
+                        method: 'POST',
+                        body: formData
                     });
                     
-                    const base64Data = await base64Promise;
-                    // Compress base64 if too large
-                    if (base64Data.length < 1000000) { // Less than 1MB
-                        imageUrl = base64Data;
-                        console.log('✅ Using base64 fallback');
-                    } else {
-                        throw new Error('Image too large for base64 fallback');
+                    var data = await response.json();
+                    
+                    if (data.success) {
+                        imageUrl = data.data.url;
+                        console.log('✅ ImgBB upload successful:', imageUrl);
                     }
-                } catch (base64Error) {
-                    console.warn('Base64 fallback failed:', base64Error);
-                    throw new Error('All image upload methods failed. Please try a smaller image.');
+                } catch (imgbbError) {
+                    console.warn('ImgBB error:', imgbbError);
                 }
-            }
-            
-            // Close the uploading dialog
-            closeCustomConfirm();
-            
-            if (imageUrl) {
-                messageData.imageUrl = imageUrl;
-                await database.ref('users/' + currentUserId + '/notifications').push(messageData);
                 
+                // Try Catbox if ImgBB fails
+                if (!imageUrl) {
+                    try {
+                        var catboxFormData = new FormData();
+                        catboxFormData.append('fileToUpload', selectedImage);
+                        catboxFormData.append('reqtype', 'fileupload');
+                        
+                        var catboxResponse = await fetch('https://catbox.moe/user/api.php', {
+                            method: 'POST',
+                            body: catboxFormData
+                        });
+                        
+                        var catboxUrl = await catboxResponse.text();
+                        
+                        if (catboxUrl && catboxUrl.startsWith('https://')) {
+                            imageUrl = catboxUrl.trim();
+                            console.log('✅ Catbox upload successful:', imageUrl);
+                        }
+                    } catch (catboxError) {
+                        console.warn('Catbox error:', catboxError);
+                    }
+                }
+                
+                // Base64 fallback
+                if (!imageUrl) {
+                    try {
+                        const reader = new FileReader();
+                        const base64Promise = new Promise((resolve, reject) => {
+                            reader.onload = () => resolve(reader.result);
+                            reader.onerror = reject;
+                            reader.readAsDataURL(selectedImage);
+                        });
+                        
+                        const base64Data = await base64Promise;
+                        if (base64Data.length < 500000) {
+                            imageUrl = base64Data;
+                            console.log('✅ Base64 fallback successful');
+                        }
+                    } catch (base64Error) {
+                        console.warn('Base64 fallback failed:', base64Error);
+                    }
+                }
+                
+                closeCustomConfirm();
+                
+                if (imageUrl) {
+                    messageData.imageUrl = imageUrl;
+                    await database.ref('users/' + currentUserId + '/notifications').push(messageData);
+                    
+                    input.value = '';
+                    input.style.height = 'auto';
+                    removeImage();
+                    sendBtn.disabled = false;
+                    sendBtn.innerHTML = '➤';
+                    scrollToBottom();
+                } else {
+                    throw new Error('Could not upload image. Please try again.');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                closeCustomConfirm();
+                showCustomConfirm(
+                    '❌ Upload Failed',
+                    'Error uploading image: ' + error.message,
+                    null,
+                    false,
+                    '❌'
+                );
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '➤';
+            }
+        } else {
+            try {
+                await database.ref('users/' + currentUserId + '/notifications').push(messageData);
                 input.value = '';
                 input.style.height = 'auto';
                 removeImage();
                 sendBtn.disabled = false;
                 sendBtn.innerHTML = '➤';
                 scrollToBottom();
-            } else {
-                throw new Error('Could not upload image. Please try again.');
+            } catch (error) {
+                console.error('Database error:', error);
+                showCustomConfirm('Error', 'Error sending message: ' + error.message, null, false, '❌');
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '➤';
             }
-        } catch (error) {
-            console.error('Upload error:', error);
-            closeCustomConfirm();
-            showCustomConfirm(
-                '❌ Upload Failed',
-                'Error uploading image: ' + error.message + '\n\nTry using a smaller image or different format.',
-                null,
-                false,
-                '❌'
-            );
-            sendBtn.disabled = false;
-            sendBtn.innerHTML = '➤';
-        }
-    } else {
-        try {
-            await database.ref('users/' + currentUserId + '/notifications').push(messageData);
-            input.value = '';
-            input.style.height = 'auto';
-            removeImage();
-            sendBtn.disabled = false;
-            sendBtn.innerHTML = '➤';
-            scrollToBottom();
-        } catch (error) {
-            console.error('Database error:', error);
-            showCustomConfirm('Error', 'Error sending message: ' + error.message, null, false, '❌');
-            sendBtn.disabled = false;
-            sendBtn.innerHTML = '➤';
         }
     }
-}
 
     // ============================================================
     // SETUP MESSAGE LISTENER
@@ -1666,16 +1823,6 @@ async function sendMessage() {
         messageListener = database.ref('users/' + currentUserId + '/notifications');
         messageListener.on('child_added', function() {
             loadMessages();
-        });
-
-        database.ref('users/' + currentUserId + '/typing').on('value', function(snapshot) {
-            var typing = snapshot.val();
-            var indicator = document.getElementById('typingIndicator');
-            if (typing) {
-                indicator.classList.add('active');
-            } else {
-                indicator.classList.remove('active');
-            }
         });
     }
 
@@ -1732,13 +1879,13 @@ async function sendMessage() {
         var viewer = document.getElementById('imageViewer');
         var viewerImg = document.getElementById('viewerImage');
         viewerImg.src = url;
-        viewer.style.display = 'flex';
+        viewer.classList.add('active');
         document.body.style.overflow = 'hidden';
     }
 
     function closeImageViewer() {
         var viewer = document.getElementById('imageViewer');
-        viewer.style.display = 'none';
+        viewer.classList.remove('active');
         document.getElementById('viewerImage').src = '';
         document.body.style.overflow = '';
     }
@@ -1772,11 +1919,16 @@ async function sendMessage() {
     function updateOnlineStatus() {
         var status = document.getElementById('onlineStatus');
         if (navigator.onLine) {
-            status.textContent = 'Online';
-            status.style.color = '#25d366';
+            if (isAdminOnline) {
+                status.textContent = 'Online';
+                status.className = 'status online';
+            } else {
+                status.textContent = 'Offline';
+                status.className = 'status offline';
+            }
         } else {
             status.textContent = 'Offline';
-            status.style.color = '#ff6b6b';
+            status.className = 'status offline';
         }
     }
 
@@ -1784,20 +1936,16 @@ async function sendMessage() {
     window.addEventListener('offline', updateOnlineStatus);
 
     // ============================================================
-    // LOGOUT (with lock to prevent spam)
+    // LOGOUT
     // ============================================================
     function logout() {
         showCustomConfirm(
             '🔒 Logout?',
             'Your account will be locked to prevent spam. You can only login with the same username: "' + localStorage.getItem('chatUsername') + '"',
             function() {
-                // LOGOUT WITHOUT DELETING LOCALSTORAGE
-                // We KEEP the username locked
-                
                 document.getElementById('chatInterface').classList.remove('active');
                 document.getElementById('loginScreen').style.display = 'flex';
                 
-                // PRE-FILL and DISABLE the username they used
                 var savedUsername = localStorage.getItem('chatUsername');
                 if (savedUsername) {
                     document.getElementById('usernameInput').value = savedUsername;
@@ -1807,20 +1955,20 @@ async function sendMessage() {
                     document.getElementById('usernameInput').title = '🔒 This username is locked to your device';
                 }
                 
-                // Hide error if shown
                 document.getElementById('loginError').classList.remove('show');
                 
                 if (messageListener) {
                     database.ref('users/' + currentUserId + '/notifications').off();
-                    database.ref('users/' + currentUserId + '/typing').off();
                 }
                 
-                // Update online status to offline
                 if (currentUserId) {
                     database.ref('users/' + currentUserId + '/online').set(false);
                 }
                 
                 currentUserId = null;
+                
+                database.ref('admin/online').off();
+                database.ref('admin/typing').off();
             },
             false,
             '🔒'
@@ -1828,7 +1976,7 @@ async function sendMessage() {
     }
 
     // ============================================================
-    // RESET ACCOUNT (for legitimate users who want to change)
+    // RESET ACCOUNT
     // ============================================================
     function resetAccount() {
         showCustomConfirm(
@@ -1913,15 +2061,11 @@ async function sendMessage() {
             'This message will be permanently removed.',
             function() {
                 var path = 'users/' + currentUserId + '/notifications/' + msgKey;
-                console.log('Deleting message:', msgKey);
-                
                 database.ref(path).remove()
                     .then(function() {
-                        console.log('Message deleted successfully');
                         loadMessages();
                     })
                     .catch(function(error) {
-                        console.error('Delete error:', error);
                         showCustomConfirm('Error', 'Failed to delete: ' + error.message, null, false, '❌');
                     });
             },
@@ -1991,7 +2135,7 @@ async function sendMessage() {
     });
 
     // ============================================================
-    // CHECK EXISTING SESSION (Auto-login with lock)
+    // CHECK EXISTING SESSION
     // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         detectWebView();
@@ -2000,19 +2144,15 @@ async function sendMessage() {
         var savedUserId = localStorage.getItem('chatUserId');
         var savedUsername = localStorage.getItem('chatUsername');
         var isLocked = localStorage.getItem('chatUserLocked') === 'true';
-        var savedDeviceId = localStorage.getItem('deviceId');
         
         if (savedUserId && savedUsername && isLocked) {
-            // USER IS LOCKED - AUTO LOGIN
             currentUserId = savedUserId;
             currentUsername = savedUsername;
             
-            // Verify user exists in Firebase
             database.ref('users/' + savedUserId).once('value', function(snapshot) {
                 if (snapshot.exists()) {
                     currentUser = snapshot.val();
                     
-                    // Update online status
                     database.ref('users/' + savedUserId + '/online').set(true);
                     database.ref('users/' + savedUserId + '/lastLogin').set(new Date().toISOString());
                     
@@ -2022,8 +2162,10 @@ async function sendMessage() {
                     setupMessageListener();
                     updateOnlineStatus();
                     setupPushNotifications(currentUserId);
+                    
+                    listenAdminStatus();
+                    listenAdminTyping(); // Start listening for admin typing
                 } else {
-                    // User was deleted from Firebase - clear storage
                     localStorage.removeItem('chatUserId');
                     localStorage.removeItem('chatUsername');
                     localStorage.removeItem('chatUserLocked');
@@ -2038,15 +2180,17 @@ async function sendMessage() {
                 }
             });
         } else {
-            // CHECK IF USERNAME IS PRE-FILLED (but not locked)
             if (savedUsername) {
                 document.getElementById('usernameInput').value = savedUsername;
-                // Don't disable, they can still change if not locked
             }
+            
+            listenAdminStatus();
+            listenAdminTyping(); // Start listening for admin typing even before login
         }
     });
 
-    console.log('💬 Chat initialized - Admin Support (Spam Protected)');
-</script>
+    console.log('💬 Chat initialized - Admin Support (Spam Protected + Typing Indicator)');
+    console.log('🟢 Admin online & typing status tracking enabled');
+    </script>
 </body>
 </html>
