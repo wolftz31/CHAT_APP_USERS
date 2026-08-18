@@ -1105,684 +1105,934 @@
 
     <script>
     // Detect if running inside an Android WebView APK
-const isLocalApp = navigator.userAgent.includes('wv') || window.location.protocol === 'file:';
+    const isLocalApp = navigator.userAgent.includes('wv') || window.location.protocol === 'file:';
 
-// Define asset paths
-const ASSET_BG = isLocalApp ? 'file:///android_asset/bg.png' : 'https://i.postimg.cc/6qqzF8HD/file-0000000056e88243b3ed55835552e8a8.png';
-const ASSET_AVATAR = isLocalApp ? 'file:///android_asset/header.png' : 'https://i.postimg.cc/1Rgpzyy3/ig.png';
-const ASSET_PROFILE = isLocalApp ? 'file:///android_asset/profile.png' : 'https://i.postimg.cc/VNzQSFZk/JPEG-20260506-131740-5426928668260112033.jpg';
-
+    // Define asset paths
+    const ASSET_BG = isLocalApp ? 'file:///android_asset/bg.png' : 'https://i.postimg.cc/6qqzF8HD/file-0000000056e88243b3ed55835552e8a8.png';
+    const ASSET_AVATAR = isLocalApp ? 'file:///android_asset/header.png' : 'https://i.postimg.cc/1Rgpzyy3/ig.png';
+    const ASSET_PROFILE = isLocalApp ? 'file:///android_asset/profile.png' : 'https://i.postimg.cc/VNzQSFZk/JPEG-20260506-131740-5426928668260112033.jpg';
 
     // Set images dynamically on page load
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('headerAvatar').src = ASSET_AVATAR;
-    document.getElementById('profileAvatar').src = ASSET_PROFILE;
-    
-    // Apply background to messages container dynamically
-    document.getElementById('messagesContainer').style.backgroundImage = `url('${ASSET_BG}')`;
-});
-    
-        // ============================================================
-        // FIREBASE CONFIG
-        // ============================================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyAUm-NXPXO_qsu2PnSNTPsdsWARBG1YDa8",
-            authDomain: "admin-assisant-wolftz.firebaseapp.com",
-            databaseURL: "https://admin-assisant-wolftz-default-rtdb.firebaseio.com",
-            projectId: "admin-assisant-wolftz",
-            storageBucket: "admin-assisant-wolftz.firebasestorage.app",
-            messagingSenderId: "555076040888",
-            appId: "1:555076040888:web:bc051a17b3b4f7ccbd5c4d",
-            measurementId: "G-CD5GY75WLT"
-        };
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('headerAvatar').src = ASSET_AVATAR;
+        document.getElementById('profileAvatar').src = ASSET_PROFILE;
+        
+        // Apply background to messages container dynamically
+        document.getElementById('messagesContainer').style.backgroundImage = `url('${ASSET_BG}')`;
+    });
 
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        const messaging = firebase.messaging();
+    // ============================================================
+    // FIREBASE CONFIG
+    // ============================================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyAUm-NXPXO_qsu2PnSNTPsdsWARBG1YDa8",
+        authDomain: "admin-assisant-wolftz.firebaseapp.com",
+        databaseURL: "https://admin-assisant-wolftz-default-rtdb.firebaseio.com",
+        projectId: "admin-assisant-wolftz",
+        storageBucket: "admin-assisant-wolftz.firebasestorage.app",
+        messagingSenderId: "555076040888",
+        appId: "1:555076040888:web:bc051a17b3b4f7ccbd5c4d",
+        measurementId: "G-CD5GY75WLT"
+    };
 
-        // ============================================================
-        // STATE
-        // ============================================================
-        let currentUser = null;
-        let currentUserId = null;
-        let selectedImage = null;
-        let messageListener = null;
-        let currentUsername = '';
-        let isWebView = false;
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const messaging = firebase.messaging();
 
+    // ============================================================
+    // STATE
+    // ============================================================
+    let currentUser = null;
+    let currentUserId = null;
+    let selectedImage = null;
+    let messageListener = null;
+    let currentUsername = '';
+    let isWebView = false;
+    let messageCount = 0;
+    let messageTimer = null;
 
-        // ============================================================
-        // DETECT IF IN WEBVIEW
-        // ============================================================
-        function detectWebView() {
-            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-            
-            if (userAgent.indexOf('wv') > -1) {
-                isWebView = true;
-                return true;
-            }
-            
-            if (window.webkit && window.webkit.messageHandlers) {
-                isWebView = true;
-                return true;
-            }
-            
-            if (!('serviceWorker' in navigator)) {
-                isWebView = true;
-                return true;
-            }
-            
+    // ============================================================
+    // DETECT IF IN WEBVIEW
+    // ============================================================
+    function detectWebView() {
+        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+        
+        if (userAgent.indexOf('wv') > -1) {
+            isWebView = true;
+            return true;
+        }
+        
+        if (window.webkit && window.webkit.messageHandlers) {
+            isWebView = true;
+            return true;
+        }
+        
+        if (!('serviceWorker' in navigator)) {
+            isWebView = true;
+            return true;
+        }
+        
+        return false;
+    }
+
+    // ============================================================
+    // DEVICE FINGERPRINTING (for spam prevention)
+    // ============================================================
+    function getDeviceFingerprint() {
+        const components = [
+            navigator.userAgent,
+            navigator.language,
+            screen.width + 'x' + screen.height,
+            navigator.platform,
+            navigator.hardwareConcurrency || 'unknown',
+            navigator.deviceMemory || 'unknown',
+            new Date().getTimezoneOffset()
+        ];
+        
+        const fingerprint = components.join('|');
+        let hash = 0;
+        for (let i = 0; i < fingerprint.length; i++) {
+            const char = fingerprint.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return 'device_' + Math.abs(hash).toString(16);
+    }
+
+    function getDeviceId() {
+        let deviceId = localStorage.getItem('deviceId');
+        if (!deviceId) {
+            deviceId = getDeviceFingerprint() + '_' + Date.now().toString(36);
+            localStorage.setItem('deviceId', deviceId);
+        }
+        return deviceId;
+    }
+
+    // ============================================================
+    // RATE LIMITING (prevent message spam)
+    // ============================================================
+    function checkRateLimit() {
+        const now = Date.now();
+        if (!messageTimer) {
+            messageTimer = now;
+            messageCount = 0;
+        }
+        
+        if (now - messageTimer > 60000) { // 1 minute
+            messageTimer = now;
+            messageCount = 0;
+        }
+        
+        messageCount++;
+        if (messageCount > 15) { // Max 15 messages per minute
+            showCustomConfirm(
+                'Rate Limited', 
+                'Please slow down! You\'re sending too many messages. Wait a moment.',
+                null, 
+                false, 
+                '⏳'
+            );
             return false;
         }
+        return true;
+    }
 
-        // ============================================================
-        // FCM TOKEN (For WebView)
-        // ============================================================
-        async function getFCMToken() {
-            if (!isWebView) return null;
+    // ============================================================
+    // FCM TOKEN (For WebView)
+    // ============================================================
+    async function getFCMToken() {
+        if (!isWebView) return null;
+        
+        try {
+            const vapidKey = 'BPlJYA1s0_02HLVDz2mkqSBCL91zGpuUBhyedZOop1nDM7TsuvXGixbdwXV7avC0payBHLG4DC9MA-rjzwlXYxo';
+            const token = await messaging.getToken({ vapidKey: vapidKey });
+            console.log('📱 FCM Token:', token);
             
-            try {
-                const vapidKey = 'BPlJYA1s0_02HLVDz2mkqSBCL91zGpuUBhyedZOop1nDM7TsuvXGixbdwXV7avC0payBHLG4DC9MA-rjzwlXYxo';
-                const token = await messaging.getToken({ vapidKey: vapidKey });
-                console.log('📱 FCM Token:', token);
-                
-                if (token && currentUserId) {
-                    await database.ref('users/' + currentUserId + '/fcmTokens').push(token);
-                }
-                
-                return token;
-            } catch (error) {
-                console.log('FCM Error:', error);
-                return null;
-            }
-        }
-
-        // ============================================================
-        // PUSH NOTIFICATIONS SETUP
-        // ============================================================
-        function setupPushNotifications(userId) {
-            // 1. OneSignal (for browsers)
-            if (window.OneSignalDeferred && !isWebView) {
-                window.OneSignalDeferred.push(async function(OneSignal) {
-                    await OneSignal.login(userId);
-                    console.log('🔔 OneSignal enabled for user:', userId);
-                    
-                    const isSubscribed = await OneSignal.isPushNotificationsEnabled();
-                    const prompt = document.getElementById('onesignal-prompt');
-                    if (!isSubscribed) {
-                        prompt.classList.add('show');
-                    } else {
-                        prompt.classList.remove('show');
-                    }
-                });
+            if (token && currentUserId) {
+                await database.ref('users/' + currentUserId + '/fcmTokens').push(token);
             }
             
-            // 2. FCM (for WebView)
-            if (isWebView) {
-                setTimeout(function() {
-                    getFCMToken();
-                }, 1000);
-            }
+            return token;
+        } catch (error) {
+            console.log('FCM Error:', error);
+            return null;
         }
+    }
 
-        function subscribeToNotifications() {
-            if (window.OneSignalDeferred) {
-                window.OneSignalDeferred.push(async function(OneSignal) {
-                    try {
-                        await OneSignal.registerForPushNotifications();
-                        document.getElementById('onesignal-prompt').classList.remove('show');
-                        document.getElementById('onesignal-subscribe').textContent = '✅ Notifications Enabled';
-                        document.getElementById('onesignal-subscribe').style.background = '#4caf50';
-                    } catch(e) {
-                        alert('Failed to enable notifications: ' + e.message);
-                    }
-                });
-            }
-        }
-
-        // ============================================================
-        // LOGIN
-        // ============================================================
-        function login() {
-            var username = document.getElementById('usernameInput').value.trim();
-            var error = document.getElementById('loginError');
-
-            if (!username || username.length < 2) {
-                error.classList.add('show');
-                error.textContent = 'Please enter a valid username (min 2 characters)';
-                return;
-            }
-
-            error.classList.remove('show');
-            
-            database.ref('users').orderByChild('username').equalTo(username).once('value', function(snapshot) {
-                var users = snapshot.val();
+    // ============================================================
+    // PUSH NOTIFICATIONS SETUP
+    // ============================================================
+    function setupPushNotifications(userId) {
+        if (window.OneSignalDeferred && !isWebView) {
+            window.OneSignalDeferred.push(async function(OneSignal) {
+                await OneSignal.login(userId);
+                console.log('🔔 OneSignal enabled for user:', userId);
                 
-                if (users) {
-                    var userId = Object.keys(users)[0];
-                    currentUserId = userId;
-                    currentUser = users[userId];
-                    currentUsername = username;
+                const isSubscribed = await OneSignal.isPushNotificationsEnabled();
+                const prompt = document.getElementById('onesignal-prompt');
+                if (!isSubscribed) {
+                    prompt.classList.add('show');
                 } else {
-                    currentUserId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-                    currentUser = { username: username };
-                    currentUsername = username;
-                    database.ref('users/' + currentUserId).set({
-                        username: username,
-                        createdAt: new Date().toISOString()
-                    });
+                    prompt.classList.remove('show');
                 }
+            });
+        }
+        
+        if (isWebView) {
+            setTimeout(function() {
+                getFCMToken();
+            }, 1000);
+        }
+    }
+
+    function subscribeToNotifications() {
+        if (window.OneSignalDeferred) {
+            window.OneSignalDeferred.push(async function(OneSignal) {
+                try {
+                    await OneSignal.registerForPushNotifications();
+                    document.getElementById('onesignal-prompt').classList.remove('show');
+                    document.getElementById('onesignal-subscribe').textContent = '✅ Notifications Enabled';
+                    document.getElementById('onesignal-subscribe').style.background = '#4caf50';
+                } catch(e) {
+                    alert('Failed to enable notifications: ' + e.message);
+                }
+            });
+        }
+    }
+
+    // ============================================================
+    // LOGIN (with spam prevention)
+    // ============================================================
+    function login() {
+        var username = document.getElementById('usernameInput').value.trim();
+        var error = document.getElementById('loginError');
+
+        if (!username || username.length < 2) {
+            error.classList.add('show');
+            error.textContent = 'Please enter a valid username (min 2 characters)';
+            return;
+        }
+
+        // Check if username is alphanumeric only (prevent special chars spam)
+        if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+            error.classList.add('show');
+            error.textContent = 'Username can only contain letters, numbers, and underscores';
+            return;
+        }
+
+        error.classList.remove('show');
+        
+        // CHECK IF USERNAME IS LOCKED IN LOCALSTORAGE
+        var savedUsername = localStorage.getItem('chatUsername');
+        var isLocked = localStorage.getItem('chatUserLocked') === 'true';
+        
+        if (savedUsername && isLocked && savedUsername !== username) {
+            // User tried to use a DIFFERENT username - LOCKED
+            showCustomConfirm(
+                '🔒 Account Locked!',
+                'You are already registered as "' + savedUsername + '". Please use that username to login.',
+                function() {
+                    document.getElementById('usernameInput').value = savedUsername;
+                },
+                false,
+                '🔒'
+            );
+            return;
+        }
+        
+        database.ref('users').orderByChild('username').equalTo(username).once('value', function(snapshot) {
+            var users = snapshot.val();
+            var deviceId = getDeviceId();
+            
+            if (users) {
+                var userId = Object.keys(users)[0];
+                var userData = users[userId];
+                
+                // Check if device ID matches (prevent account sharing)
+                if (userData.deviceId && userData.deviceId !== deviceId) {
+                    showCustomConfirm(
+                        '⚠️ Account in Use',
+                        'This account is registered on another device. Please use your own account.',
+                        null,
+                        false,
+                        '⚠️'
+                    );
+                    return;
+                }
+                
+                currentUserId = userId;
+                currentUser = userData;
+                currentUsername = username;
+                
+                // Update device info
+                database.ref('users/' + currentUserId).update({
+                    lastLogin: new Date().toISOString(),
+                    deviceId: deviceId,
+                    online: true
+                });
+                
+                // SAVE TO LOCALSTORAGE PERMANENTLY
+                localStorage.setItem('chatUserId', currentUserId);
+                localStorage.setItem('chatUsername', username);
+                localStorage.setItem('chatUserLocked', 'true');
+                
+            } else {
+                // CREATE NEW USER WITH LOCK
+                currentUserId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                currentUser = { 
+                    username: username,
+                    deviceId: deviceId,
+                    online: true
+                };
+                currentUsername = username;
+                
+                database.ref('users/' + currentUserId).set({
+                    username: username,
+                    createdAt: new Date().toISOString(),
+                    lastLogin: new Date().toISOString(),
+                    deviceId: deviceId,
+                    online: true
+                });
 
                 localStorage.setItem('chatUserId', currentUserId);
                 localStorage.setItem('chatUsername', username);
-
-                document.getElementById('loginScreen').style.display = 'none';
-                document.getElementById('chatInterface').classList.add('active');
-                
-                loadMessages();
-                setupMessageListener();
-                updateOnlineStatus();
-                
-                setupPushNotifications(currentUserId);
-            });
-        }
-
-        // ============================================================
-        // LOAD MESSAGES
-        // ============================================================
-        function loadMessages() {
-            var container = document.getElementById('messagesContainer');
-            container.innerHTML = '<div class="loading-messages">Loading messages...</div>';
-
-            if (!currentUserId) {
-                console.log('No user ID, waiting for login');
-                return;
+                localStorage.setItem('chatUserLocked', 'true');
             }
 
-            database.ref('users/' + currentUserId + '/notifications').once('value', function(snapshot) {
-                var notifications = snapshot.val();
-                container.innerHTML = '';
-                
-                if (!notifications) {
-                    showEmptyState();
-                    return;
-                }
-
-                var messages = Object.entries(notifications);
-                if (messages.length === 0) {
-                    showEmptyState();
-                    return;
-                }
-
-                messages.sort(function(a, b) {
-                    var timeA = new Date(a[1].timestamp || 0);
-                    var timeB = new Date(b[1].timestamp || 0);
-                    return timeA - timeB;
-                });
-
-                var lastDate = '';
-                messages.forEach(function(entry) {
-                    var key = entry[0];
-                    var msg = entry[1];
-                    
-                    var date = new Date(msg.timestamp || Date.now());
-                    var dateStr = date.toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                    });
-
-                    if (dateStr !== lastDate) {
-                        lastDate = dateStr;
-                        var divider = document.createElement('div');
-                        divider.className = 'date-divider';
-                        divider.innerHTML = '<span>' + dateStr + '</span>';
-                        container.appendChild(divider);
-                    }
-
-                    var isAdmin = msg.adminMessage !== undefined;
-                    
-                    var messageEl = document.createElement('div');
-                    messageEl.className = 'message ' + (isAdmin ? 'received' : 'sent');
-                    messageEl.dataset.msgKey = key;
-                    
-                    messageEl.addEventListener('mousedown', function(e) {
-                        if (e.target.tagName !== 'IMG' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
-                            handleLongPress(e, key);
-                        }
-                    });
-                    messageEl.addEventListener('mouseup', cancelLongPress);
-                    messageEl.addEventListener('mouseleave', cancelLongPress);
-                    messageEl.addEventListener('touchstart', function(e) {
-                        if (e.target.tagName !== 'IMG' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
-                            handleLongPress(e, key);
-                        }
-                    }, { passive: false });
-                    messageEl.addEventListener('touchend', cancelLongPress, { passive: false });
-                    messageEl.addEventListener('touchmove', cancelLongPress, { passive: false });
-                    
-                    var content = '';
-                    if (msg.imageUrl) {
-                        content += '<div class="msg-image-container">' +
-                            '<img src="' + msg.imageUrl + '" class="msg-image" onclick="event.stopPropagation();viewImage(\'' + msg.imageUrl + '\')" onerror="this.style.display=\'none\'" alt="Image">' +
-                            '<button class="download-btn" onclick="event.stopPropagation();downloadImage(\'' + msg.imageUrl + '\')">⬇ Download</button>' +
-                        '</div>';
-                    }
-                    var displayText = isAdmin ? msg.adminMessage : msg.message;
-                    if (displayText) {
-                        content += '<div class="msg-text">' + linkify(displayText) + '</div>';
-                    }
-                    content += '<div class="msg-time">' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + '</div>';
-                    
-                    messageEl.innerHTML = content;
-                    container.appendChild(messageEl);
-                });
-
-                scrollToBottom();
-            });
-        }
-
-        function showEmptyState() {
-            var container = document.getElementById('messagesContainer');
-            container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#5a6a85;">' +
-                '<div style="font-size:48px;margin-bottom:16px;">💬</div>' +
-                '<div style="font-size:16px;font-weight:500;">No messages yet</div>' +
-                '<div style="font-size:13px;margin-top:6px;">Send a message to start the conversation</div>' +
-            '</div>';
-        }
-
-        // ============================================================
-        // SEND MESSAGE
-        // ============================================================
-        async function sendMessage() {
-            var input = document.getElementById('messageInput');
-            var text = input.value.trim();
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('chatInterface').classList.add('active');
             
-            if (!text && !selectedImage) {
+            loadMessages();
+            setupMessageListener();
+            updateOnlineStatus();
+            setupPushNotifications(currentUserId);
+        });
+    }
+
+    // ============================================================
+    // LOAD MESSAGES
+    // ============================================================
+    function loadMessages() {
+        var container = document.getElementById('messagesContainer');
+        container.innerHTML = '<div class="loading-messages">Loading messages...</div>';
+
+        if (!currentUserId) {
+            console.log('No user ID, waiting for login');
+            return;
+        }
+
+        database.ref('users/' + currentUserId + '/notifications').once('value', function(snapshot) {
+            var notifications = snapshot.val();
+            container.innerHTML = '';
+            
+            if (!notifications) {
+                showEmptyState();
                 return;
             }
 
-            var sendBtn = document.getElementById('sendBtn');
-            sendBtn.disabled = true;
-            sendBtn.innerHTML = '⏳';
-
-            var messageData = {
-                timestamp: new Date().toLocaleString(),
-                read: false
-            };
-
-            if (text) {
-                messageData.message = text;
+            var messages = Object.entries(notifications);
+            if (messages.length === 0) {
+                showEmptyState();
+                return;
             }
 
-            if (selectedImage) {
-                try {
-                    var formData = new FormData();
-                    formData.append('image', selectedImage);
-                    
-                    var IMGBB_API_KEY = '5e227c108107599d3c5c45e12eb22bdb';
-                    
-                    var response = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_API_KEY, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    var data = await response.json();
-                    
-                    if (data.success) {
-                        messageData.imageUrl = data.data.url;
-                        await database.ref('users/' + currentUserId + '/notifications').push(messageData);
-                        
-                        input.value = '';
-                        input.style.height = 'auto';
-                        removeImage();
-                        sendBtn.disabled = false;
-                        sendBtn.innerHTML = '➤';
-                        scrollToBottom();
-                    } else {
-                        throw new Error(data.error?.message || 'Upload failed');
-                    }
-                } catch (error) {
-                    console.error('Upload error:', error);
-                    alert('Error uploading image: ' + error.message);
-                    sendBtn.disabled = false;
-                    sendBtn.innerHTML = '➤';
+            messages.sort(function(a, b) {
+                var timeA = new Date(a[1].timestamp || 0);
+                var timeB = new Date(b[1].timestamp || 0);
+                return timeA - timeB;
+            });
+
+            var lastDate = '';
+            messages.forEach(function(entry) {
+                var key = entry[0];
+                var msg = entry[1];
+                
+                var date = new Date(msg.timestamp || Date.now());
+                var dateStr = date.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+
+                if (dateStr !== lastDate) {
+                    lastDate = dateStr;
+                    var divider = document.createElement('div');
+                    divider.className = 'date-divider';
+                    divider.innerHTML = '<span>' + dateStr + '</span>';
+                    container.appendChild(divider);
                 }
+
+                var isAdmin = msg.adminMessage !== undefined;
+                
+                var messageEl = document.createElement('div');
+                messageEl.className = 'message ' + (isAdmin ? 'received' : 'sent');
+                messageEl.dataset.msgKey = key;
+                
+                messageEl.addEventListener('mousedown', function(e) {
+                    if (e.target.tagName !== 'IMG' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
+                        handleLongPress(e, key);
+                    }
+                });
+                messageEl.addEventListener('mouseup', cancelLongPress);
+                messageEl.addEventListener('mouseleave', cancelLongPress);
+                messageEl.addEventListener('touchstart', function(e) {
+                    if (e.target.tagName !== 'IMG' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
+                        handleLongPress(e, key);
+                    }
+                }, { passive: false });
+                messageEl.addEventListener('touchend', cancelLongPress, { passive: false });
+                messageEl.addEventListener('touchmove', cancelLongPress, { passive: false });
+                
+                var content = '';
+                if (msg.imageUrl) {
+                    content += '<div class="msg-image-container">' +
+                        '<img src="' + msg.imageUrl + '" class="msg-image" onclick="event.stopPropagation();viewImage(\'' + msg.imageUrl + '\')" onerror="this.style.display=\'none\'" alt="Image">' +
+                        '<button class="download-btn" onclick="event.stopPropagation();downloadImage(\'' + msg.imageUrl + '\')">⬇ Download</button>' +
+                    '</div>';
+                }
+                var displayText = isAdmin ? msg.adminMessage : msg.message;
+                if (displayText) {
+                    content += '<div class="msg-text">' + linkify(displayText) + '</div>';
+                }
+                content += '<div class="msg-time">' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + '</div>';
+                
+                messageEl.innerHTML = content;
+                container.appendChild(messageEl);
+            });
+
+            scrollToBottom();
+        });
+    }
+
+    function showEmptyState() {
+        var container = document.getElementById('messagesContainer');
+        container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#5a6a85;">' +
+            '<div style="font-size:48px;margin-bottom:16px;">💬</div>' +
+            '<div style="font-size:16px;font-weight:500;">No messages yet</div>' +
+            '<div style="font-size:13px;margin-top:6px;">Send a message to start the conversation</div>' +
+        '</div>';
+    }
+
+// ============================================================
+// ALTERNATIVE: SEND MESSAGE with Catbox.moe upload
+// ============================================================
+async function sendMessage() {
+    // Rate limiting check
+    if (!checkRateLimit()) {
+        return;
+    }
+    
+    var input = document.getElementById('messageInput');
+    var text = input.value.trim();
+    
+    if (!text && !selectedImage) {
+        return;
+    }
+
+    var sendBtn = document.getElementById('sendBtn');
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '⏳';
+
+    var messageData = {
+        timestamp: new Date().toLocaleString(),
+        read: false
+    };
+
+    if (text) {
+        messageData.message = text;
+    }
+
+    if (selectedImage) {
+        try {
+            showCustomConfirm(
+                '📤 Uploading Image',
+                'Please wait while your image is being uploaded...',
+                null,
+                false,
+                '⏳'
+            );
+            
+            var formData = new FormData();
+            formData.append('fileToUpload', selectedImage);
+            formData.append('reqtype', 'fileupload');
+            
+            // Use Catbox.moe as alternative (no API key needed)
+            var response = await fetch('https://catbox.moe/user/api.php', {
+                method: 'POST',
+                body: formData
+            });
+            
+            var imageUrl = await response.text();
+            
+            closeCustomConfirm();
+            
+            // Check if upload was successful (Catbox returns the URL if successful)
+            if (imageUrl && imageUrl.startsWith('https://')) {
+                messageData.imageUrl = imageUrl.trim();
+                console.log('✅ Catbox upload successful:', imageUrl);
+                
+                await database.ref('users/' + currentUserId + '/notifications').push(messageData);
+                
+                input.value = '';
+                input.style.height = 'auto';
+                removeImage();
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '➤';
+                scrollToBottom();
             } else {
-                try {
+                throw new Error('Upload failed: ' + imageUrl);
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            closeCustomConfirm();
+            
+            // Try base64 fallback for small images
+            try {
+                const reader = new FileReader();
+                const base64Promise = new Promise((resolve, reject) => {
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(selectedImage);
+                });
+                
+                const base64Data = await base64Promise;
+                if (base64Data.length < 500000) { // Less than 500KB
+                    messageData.imageUrl = base64Data;
                     await database.ref('users/' + currentUserId + '/notifications').push(messageData);
+                    
                     input.value = '';
                     input.style.height = 'auto';
                     removeImage();
                     sendBtn.disabled = false;
                     sendBtn.innerHTML = '➤';
                     scrollToBottom();
-                } catch (error) {
-                    console.error('Database error:', error);
-                    alert('Error sending message: ' + error.message);
-                    sendBtn.disabled = false;
-                    sendBtn.innerHTML = '➤';
+                    return;
                 }
-            }
-        }
-
-        // ============================================================
-        // SETUP MESSAGE LISTENER
-        // ============================================================
-        function setupMessageListener() {
-            if (messageListener) {
-                database.ref('users/' + currentUserId + '/notifications').off();
-            }
-
-            messageListener = database.ref('users/' + currentUserId + '/notifications');
-            messageListener.on('child_added', function() {
-                loadMessages();
-            });
-
-            database.ref('users/' + currentUserId + '/typing').on('value', function(snapshot) {
-                var typing = snapshot.val();
-                var indicator = document.getElementById('typingIndicator');
-                if (typing) {
-                    indicator.classList.add('active');
-                } else {
-                    indicator.classList.remove('active');
-                }
-            });
-        }
-
-        // ============================================================
-        // IMAGE HANDLING
-        // ============================================================
-        function handleFileSelect(event) {
-            var file = event.target.files[0];
-            if (!file) return;
-            
-            if (!file.type.startsWith('image/')) {
-                alert('Please select an image file');
-                event.target.value = '';
-                return;
+            } catch (base64Error) {
+                console.warn('Base64 fallback failed:', base64Error);
             }
             
-            if (file.size > 10 * 1024 * 1024) {
-                alert('Image size must be less than 10MB');
-                event.target.value = '';
-                return;
-            }
-            
-            selectedImage = file;
-            var preview = document.getElementById('imagePreview');
-            var previewImg = document.getElementById('previewImage');
-            var previewName = document.getElementById('previewFileName');
-            
-            var reader = new FileReader();
-            reader.onload = function(e) {
-                previewImg.src = e.target.result;
-                previewName.textContent = file.name;
-                preview.classList.add('active');
-            };
-            reader.onerror = function() {
-                alert('Error reading image file');
-                selectedImage = null;
-            };
-            reader.readAsDataURL(file);
-            event.target.value = '';
-        }
-
-        function removeImage() {
-            selectedImage = null;
-            document.getElementById('imagePreview').classList.remove('active');
-            document.getElementById('previewImage').src = '';
-            document.getElementById('previewFileName').textContent = 'image.jpg';
-        }
-
-        // ============================================================
-        // IMAGE VIEWER
-        // ============================================================
-        function viewImage(url) {
-            if (!url) return;
-            var viewer = document.getElementById('imageViewer');
-            var viewerImg = document.getElementById('viewerImage');
-            viewerImg.src = url;
-            viewer.style.display = 'flex';
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeImageViewer() {
-            var viewer = document.getElementById('imageViewer');
-            viewer.style.display = 'none';
-            document.getElementById('viewerImage').src = '';
-            document.body.style.overflow = '';
-        }
-
-        function downloadImage(url) {
-            window.open(url, '_blank');
-        }
-
-        // ============================================================
-        // UTILITY FUNCTIONS
-        // ============================================================
-        function scrollToBottom() {
-            var container = document.getElementById('messagesContainer');
-            setTimeout(function() {
-                container.scrollTop = container.scrollHeight;
-            }, 100);
-        }
-
-        function autoResize(textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = Math.min(textarea.scrollHeight, 80) + 'px';
-        }
-
-        function handleEnter(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        }
-
-        function updateOnlineStatus() {
-            var status = document.getElementById('onlineStatus');
-            if (navigator.onLine) {
-                status.textContent = 'Online';
-                status.style.color = '#25d366';
-            } else {
-                status.textContent = 'Offline';
-                status.style.color = '#ff6b6b';
-            }
-        }
-
-        window.addEventListener('online', updateOnlineStatus);
-        window.addEventListener('offline', updateOnlineStatus);
-
-        // ============================================================
-        // LOGOUT
-        // ============================================================
-        function logout() {
             showCustomConfirm(
-                'Logout?',
-                'Are you sure you want to logout?',
-                function() {
-                    localStorage.removeItem('chatUserId');
-                    localStorage.removeItem('chatUsername');
-                    document.getElementById('chatInterface').classList.remove('active');
-                    document.getElementById('loginScreen').style.display = 'flex';
-                    document.getElementById('usernameInput').value = '';
-                    if (messageListener) {
-                        database.ref('users/' + currentUserId + '/notifications').off();
-                        database.ref('users/' + currentUserId + '/typing').off();
-                    }
-                    currentUserId = null;
-                },
+                '❌ Upload Failed',
+                'Error uploading image: ' + error.message + '\n\nTry using a smaller image (under 500KB).',
+                null,
                 false,
-                '👋'
+                '❌'
             );
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '➤';
+        }
+    } else {
+        try {
+            await database.ref('users/' + currentUserId + '/notifications').push(messageData);
+            input.value = '';
+            input.style.height = 'auto';
+            removeImage();
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '➤';
+            scrollToBottom();
+        } catch (error) {
+            console.error('Database error:', error);
+            showCustomConfirm('Error', 'Error sending message: ' + error.message, null, false, '❌');
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '➤';
+        }
+    }
+}
+
+    // ============================================================
+    // SETUP MESSAGE LISTENER
+    // ============================================================
+    function setupMessageListener() {
+        if (messageListener) {
+            database.ref('users/' + currentUserId + '/notifications').off();
         }
 
-        function toggleEmoji() {
-            var emojis = ['😊', '😂', '❤️', '👍', '👋', '🔥', '💯', '✨', '🎉', '💪', '🤝', '🙏'];
-            var random = emojis[Math.floor(Math.random() * emojis.length)];
-            var input = document.getElementById('messageInput');
-            input.value += random;
-            input.focus();
+        messageListener = database.ref('users/' + currentUserId + '/notifications');
+        messageListener.on('child_added', function() {
+            loadMessages();
+        });
+
+        database.ref('users/' + currentUserId + '/typing').on('value', function(snapshot) {
+            var typing = snapshot.val();
+            var indicator = document.getElementById('typingIndicator');
+            if (typing) {
+                indicator.classList.add('active');
+            } else {
+                indicator.classList.remove('active');
+            }
+        });
+    }
+
+    // ============================================================
+    // IMAGE HANDLING
+    // ============================================================
+    function handleFileSelect(event) {
+        var file = event.target.files[0];
+        if (!file) return;
+        
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file');
+            event.target.value = '';
+            return;
         }
-
-        // ============================================================
-        // LINKIFY
-        // ============================================================
-        function linkify(text) {
-            if (!text) return '';
-            var urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi;
-            return text.replace(urlRegex, function(url) {
-                var href = url;
-                if (!/^https?:\/\//i.test(url)) {
-                    href = 'https://' + url;
-                }
-                return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color: #bf00ff; text-decoration: underline; word-break: break-all;">' + url + '</a>';
-            });
+        
+        if (file.size > 10 * 1024 * 1024) {
+            alert('Image size must be less than 10MB');
+            event.target.value = '';
+            return;
         }
+        
+        selectedImage = file;
+        var preview = document.getElementById('imagePreview');
+        var previewImg = document.getElementById('previewImage');
+        var previewName = document.getElementById('previewFileName');
+        
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            previewName.textContent = file.name;
+            preview.classList.add('active');
+        };
+        reader.onerror = function() {
+            alert('Error reading image file');
+            selectedImage = null;
+        };
+        reader.readAsDataURL(file);
+        event.target.value = '';
+    }
 
-        // ============================================================
-        // LONG PRESS DELETE
-        // ============================================================
-        var longPressTimer = null;
+    function removeImage() {
+        selectedImage = null;
+        document.getElementById('imagePreview').classList.remove('active');
+        document.getElementById('previewImage').src = '';
+        document.getElementById('previewFileName').textContent = 'image.jpg';
+    }
 
-        function handleLongPress(e, msgKey) {
+    // ============================================================
+    // IMAGE VIEWER
+    // ============================================================
+    function viewImage(url) {
+        if (!url) return;
+        var viewer = document.getElementById('imageViewer');
+        var viewerImg = document.getElementById('viewerImage');
+        viewerImg.src = url;
+        viewer.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeImageViewer() {
+        var viewer = document.getElementById('imageViewer');
+        viewer.style.display = 'none';
+        document.getElementById('viewerImage').src = '';
+        document.body.style.overflow = '';
+    }
+
+    function downloadImage(url) {
+        window.open(url, '_blank');
+    }
+
+    // ============================================================
+    // UTILITY FUNCTIONS
+    // ============================================================
+    function scrollToBottom() {
+        var container = document.getElementById('messagesContainer');
+        setTimeout(function() {
+            container.scrollTop = container.scrollHeight;
+        }, 100);
+    }
+
+    function autoResize(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 80) + 'px';
+    }
+
+    function handleEnter(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            
-            if (longPressTimer) {
-                clearTimeout(longPressTimer);
-                longPressTimer = null;
+            sendMessage();
+        }
+    }
+
+    function updateOnlineStatus() {
+        var status = document.getElementById('onlineStatus');
+        if (navigator.onLine) {
+            status.textContent = 'Online';
+            status.style.color = '#25d366';
+        } else {
+            status.textContent = 'Offline';
+            status.style.color = '#ff6b6b';
+        }
+    }
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    // ============================================================
+    // LOGOUT (with lock to prevent spam)
+    // ============================================================
+    function logout() {
+        showCustomConfirm(
+            '🔒 Logout?',
+            'Your account will be locked to prevent spam. You can only login with the same username: "' + localStorage.getItem('chatUsername') + '"',
+            function() {
+                // LOGOUT WITHOUT DELETING LOCALSTORAGE
+                // We KEEP the username locked
+                
+                document.getElementById('chatInterface').classList.remove('active');
+                document.getElementById('loginScreen').style.display = 'flex';
+                
+                // PRE-FILL and DISABLE the username they used
+                var savedUsername = localStorage.getItem('chatUsername');
+                if (savedUsername) {
+                    document.getElementById('usernameInput').value = savedUsername;
+                    document.getElementById('usernameInput').disabled = true;
+                    document.getElementById('usernameInput').style.opacity = '0.7';
+                    document.getElementById('usernameInput').style.cursor = 'not-allowed';
+                    document.getElementById('usernameInput').title = '🔒 This username is locked to your device';
+                }
+                
+                // Hide error if shown
+                document.getElementById('loginError').classList.remove('show');
+                
+                if (messageListener) {
+                    database.ref('users/' + currentUserId + '/notifications').off();
+                    database.ref('users/' + currentUserId + '/typing').off();
+                }
+                
+                // Update online status to offline
+                if (currentUserId) {
+                    database.ref('users/' + currentUserId + '/online').set(false);
+                }
+                
+                currentUserId = null;
+            },
+            false,
+            '🔒'
+        );
+    }
+
+    // ============================================================
+    // RESET ACCOUNT (for legitimate users who want to change)
+    // ============================================================
+    function resetAccount() {
+        showCustomConfirm(
+            '⚠️ Reset Account?',
+            'This will remove your saved username. You can create a NEW account with a different username. All your messages will still be saved.',
+            function() {
+                localStorage.removeItem('chatUserId');
+                localStorage.removeItem('chatUsername');
+                localStorage.removeItem('chatUserLocked');
+                localStorage.removeItem('deviceId');
+                document.getElementById('usernameInput').value = '';
+                document.getElementById('usernameInput').disabled = false;
+                document.getElementById('usernameInput').style.opacity = '1';
+                document.getElementById('usernameInput').style.cursor = 'text';
+                document.getElementById('usernameInput').title = '';
+                location.reload();
+            },
+            true,
+            '🗑️'
+        );
+    }
+
+    // ============================================================
+    // TOGGLE EMOJI
+    // ============================================================
+    function toggleEmoji() {
+        var emojis = ['😊', '😂', '❤️', '👍', '👋', '🔥', '💯', '✨', '🎉', '💪', '🤝', '🙏', '😍', '🥰', '😘'];
+        var random = emojis[Math.floor(Math.random() * emojis.length)];
+        var input = document.getElementById('messageInput');
+        input.value += random;
+        input.focus();
+    }
+
+    // ============================================================
+    // LINKIFY
+    // ============================================================
+    function linkify(text) {
+        if (!text) return '';
+        var urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi;
+        return text.replace(urlRegex, function(url) {
+            var href = url;
+            if (!/^https?:\/\//i.test(url)) {
+                href = 'https://' + url;
             }
-            
-            longPressTimer = setTimeout(function() {
-                confirmDeleteMessage(msgKey);
-            }, 600);
+            return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color: #bf00ff; text-decoration: underline; word-break: break-all;">' + url + '</a>';
+        });
+    }
+
+    // ============================================================
+    // LONG PRESS DELETE
+    // ============================================================
+    var longPressTimer = null;
+
+    function handleLongPress(e, msgKey) {
+        e.preventDefault();
+        
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
         }
+        
+        longPressTimer = setTimeout(function() {
+            confirmDeleteMessage(msgKey);
+        }, 600);
+    }
 
-        function cancelLongPress() {
-            if (longPressTimer) {
-                clearTimeout(longPressTimer);
-                longPressTimer = null;
-            }
+    function cancelLongPress() {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
         }
+    }
 
-        function confirmDeleteMessage(msgKey) {
-            if (!currentUserId || !msgKey) {
-                showCustomConfirm('Error', 'Cannot delete: missing user or message', null, false, '❌');
-                return;
-            }
-            
-            showCustomConfirm(
-                'Delete Message?',
-                'This message will be permanently removed.',
-                function() {
-                    var path = 'users/' + currentUserId + '/notifications/' + msgKey;
-                    console.log('Deleting message:', msgKey);
-                    
-                    database.ref(path).remove()
-                        .then(function() {
-                            console.log('Message deleted successfully');
-                            loadMessages();
-                        })
-                        .catch(function(error) {
-                            console.error('Delete error:', error);
-                            showCustomConfirm('Error', 'Failed to delete: ' + error.message, null, false, '❌');
-                        });
-                },
-                true,
-                '🗑️'
-            );
+    function confirmDeleteMessage(msgKey) {
+        if (!currentUserId || !msgKey) {
+            showCustomConfirm('Error', 'Cannot delete: missing user or message', null, false, '❌');
+            return;
         }
+        
+        showCustomConfirm(
+            '🗑️ Delete Message?',
+            'This message will be permanently removed.',
+            function() {
+                var path = 'users/' + currentUserId + '/notifications/' + msgKey;
+                console.log('Deleting message:', msgKey);
+                
+                database.ref(path).remove()
+                    .then(function() {
+                        console.log('Message deleted successfully');
+                        loadMessages();
+                    })
+                    .catch(function(error) {
+                        console.error('Delete error:', error);
+                        showCustomConfirm('Error', 'Failed to delete: ' + error.message, null, false, '❌');
+                    });
+            },
+            true,
+            '🗑️'
+        );
+    }
 
-        // ============================================================
-        // CUSTOM CONFIRM DIALOG
-        // ============================================================
-        var confirmCallback = null;
+    // ============================================================
+    // CUSTOM CONFIRM DIALOG
+    // ============================================================
+    var confirmCallback = null;
 
-        function showCustomConfirm(title, message, onConfirm, isDanger, icon) {
-            isDanger = isDanger || false;
-            icon = icon || '⚠️';
-            
-            var overlay = document.getElementById('customConfirm');
-            document.getElementById('confirmTitle').textContent = title;
-            document.getElementById('confirmMessage').textContent = message;
-            document.getElementById('confirmIcon').textContent = icon;
-            
-            var confirmBtn = document.getElementById('confirmActionBtn');
-            confirmBtn.className = 'confirm-btn' + (isDanger ? ' danger' : '');
-            confirmBtn.textContent = isDanger ? 'Delete' : 'Confirm';
-            
-            confirmCallback = onConfirm;
-            overlay.classList.add('active');
+    function showCustomConfirm(title, message, onConfirm, isDanger, icon) {
+        isDanger = isDanger || false;
+        icon = icon || '⚠️';
+        
+        var overlay = document.getElementById('customConfirm');
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmMessage').textContent = message;
+        document.getElementById('confirmIcon').textContent = icon;
+        
+        var confirmBtn = document.getElementById('confirmActionBtn');
+        confirmBtn.className = 'confirm-btn' + (isDanger ? ' danger' : '');
+        confirmBtn.textContent = isDanger ? 'Delete' : 'Confirm';
+        
+        confirmCallback = onConfirm;
+        overlay.classList.add('active');
+    }
+
+    function closeCustomConfirm() {
+        document.getElementById('customConfirm').classList.remove('active');
+        confirmCallback = null;
+    }
+
+    function executeCustomConfirm() {
+        if (confirmCallback) {
+            confirmCallback();
         }
+        closeCustomConfirm();
+    }
 
-        function closeCustomConfirm() {
-            document.getElementById('customConfirm').classList.remove('active');
-            confirmCallback = null;
-        }
-
-        function executeCustomConfirm() {
-            if (confirmCallback) {
-                confirmCallback();
-            }
+    document.addEventListener('click', function(e) {
+        var overlay = document.getElementById('customConfirm');
+        if (e.target === overlay) {
             closeCustomConfirm();
         }
+    });
 
-        document.addEventListener('click', function(e) {
-            var overlay = document.getElementById('customConfirm');
-            if (e.target === overlay) {
-                closeCustomConfirm();
-            }
-        });
+    // ============================================================
+    // PROFILE MODAL
+    // ============================================================
+    function openProfile() {
+        document.getElementById('profileOverlay').classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
 
-        // ============================================================
-        // PROFILE MODAL
-        // ============================================================
-        function openProfile() {
-            document.getElementById('profileOverlay').classList.add('active');
-            document.body.style.overflow = 'hidden';
+    function closeProfile() {
+        document.getElementById('profileOverlay').classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeProfile();
         }
+    });
 
-        function closeProfile() {
-            document.getElementById('profileOverlay').classList.remove('active');
-            document.body.style.overflow = '';
-        }
-
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeProfile();
-            }
-        });
-
-        // ============================================================
-        // CHECK EXISTING SESSION
-        // ============================================================
-        document.addEventListener('DOMContentLoaded', function() {
-            detectWebView();
-            console.log('📱 Is WebView:', isWebView);
+    // ============================================================
+    // CHECK EXISTING SESSION (Auto-login with lock)
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        detectWebView();
+        console.log('📱 Is WebView:', isWebView);
+        
+        var savedUserId = localStorage.getItem('chatUserId');
+        var savedUsername = localStorage.getItem('chatUsername');
+        var isLocked = localStorage.getItem('chatUserLocked') === 'true';
+        var savedDeviceId = localStorage.getItem('deviceId');
+        
+        if (savedUserId && savedUsername && isLocked) {
+            // USER IS LOCKED - AUTO LOGIN
+            currentUserId = savedUserId;
+            currentUsername = savedUsername;
             
-            var savedUserId = localStorage.getItem('chatUserId');
-            var savedUsername = localStorage.getItem('chatUsername');
-            if (savedUserId && savedUsername) {
-                currentUserId = savedUserId;
-                currentUsername = savedUsername;
-                database.ref('users/' + savedUserId).once('value', function(snapshot) {
-                    if (snapshot.exists()) {
-                        currentUser = snapshot.val();
-                        document.getElementById('loginScreen').style.display = 'none';
-                        document.getElementById('chatInterface').classList.add('active');
-                        loadMessages();
-                        setupMessageListener();
-                        updateOnlineStatus();
-                        
-                        setupPushNotifications(currentUserId);
-                    }
-                });
+            // Verify user exists in Firebase
+            database.ref('users/' + savedUserId).once('value', function(snapshot) {
+                if (snapshot.exists()) {
+                    currentUser = snapshot.val();
+                    
+                    // Update online status
+                    database.ref('users/' + savedUserId + '/online').set(true);
+                    database.ref('users/' + savedUserId + '/lastLogin').set(new Date().toISOString());
+                    
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('chatInterface').classList.add('active');
+                    loadMessages();
+                    setupMessageListener();
+                    updateOnlineStatus();
+                    setupPushNotifications(currentUserId);
+                } else {
+                    // User was deleted from Firebase - clear storage
+                    localStorage.removeItem('chatUserId');
+                    localStorage.removeItem('chatUsername');
+                    localStorage.removeItem('chatUserLocked');
+                    document.getElementById('usernameInput').value = '';
+                    showCustomConfirm(
+                        '⚠️ Account Not Found',
+                        'Your account no longer exists. Please create a new one.',
+                        null,
+                        false,
+                        '⚠️'
+                    );
+                }
+            });
+        } else {
+            // CHECK IF USERNAME IS PRE-FILLED (but not locked)
+            if (savedUsername) {
+                document.getElementById('usernameInput').value = savedUsername;
+                // Don't disable, they can still change if not locked
             }
-        });
+        }
+    });
 
-        console.log('💬 Chat initialized - Admin Support');
-    </script>
+    console.log('💬 Chat initialized - Admin Support (Spam Protected)');
+</script>
 </body>
 </html>
