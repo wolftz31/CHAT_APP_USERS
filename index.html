@@ -1514,8 +1514,8 @@
         '</div>';
     }
 
-// ============================================================
-// ALTERNATIVE: SEND MESSAGE with Catbox.moe upload
+ // ============================================================
+// SEND MESSAGE (with fixed image upload)
 // ============================================================
 async function sendMessage() {
     // Rate limiting check
@@ -1545,6 +1545,7 @@ async function sendMessage() {
 
     if (selectedImage) {
         try {
+            // Show uploading status
             showCustomConfirm(
                 '📤 Uploading Image',
                 'Please wait while your image is being uploaded...',
@@ -1554,24 +1555,64 @@ async function sendMessage() {
             );
             
             var formData = new FormData();
-            formData.append('fileToUpload', selectedImage);
-            formData.append('reqtype', 'fileupload');
+            formData.append('image', selectedImage);
             
-            // Use Catbox.moe as alternative (no API key needed)
-            var response = await fetch('https://catbox.moe/user/api.php', {
-                method: 'POST',
-                body: formData
-            });
+            // Try multiple image hosting services
+            var imageUrl = null;
+            var uploadError = null;
             
-            var imageUrl = await response.text();
+            // Try ImgBB first
+            try {
+                var IMGBB_API_KEY = '5e227c108107599d3c5c45e12eb22bdb';
+                var response = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_API_KEY, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                var data = await response.json();
+                
+                if (data.success) {
+                    imageUrl = data.data.url;
+                    console.log('✅ ImgBB upload successful:', imageUrl);
+                } else {
+                    uploadError = data.error?.message || 'ImgBB upload failed';
+                    console.warn('ImgBB upload failed:', uploadError);
+                }
+            } catch (imgbbError) {
+                console.warn('ImgBB error:', imgbbError);
+                uploadError = imgbbError.message;
+            }
             
+            // If ImgBB fails, try alternative method (base64 storage)
+            if (!imageUrl) {
+                try {
+                    // Convert to base64 and store directly (limited to small images)
+                    const reader = new FileReader();
+                    const base64Promise = new Promise((resolve, reject) => {
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(selectedImage);
+                    });
+                    
+                    const base64Data = await base64Promise;
+                    // Compress base64 if too large
+                    if (base64Data.length < 1000000) { // Less than 1MB
+                        imageUrl = base64Data;
+                        console.log('✅ Using base64 fallback');
+                    } else {
+                        throw new Error('Image too large for base64 fallback');
+                    }
+                } catch (base64Error) {
+                    console.warn('Base64 fallback failed:', base64Error);
+                    throw new Error('All image upload methods failed. Please try a smaller image.');
+                }
+            }
+            
+            // Close the uploading dialog
             closeCustomConfirm();
             
-            // Check if upload was successful (Catbox returns the URL if successful)
-            if (imageUrl && imageUrl.startsWith('https://')) {
-                messageData.imageUrl = imageUrl.trim();
-                console.log('✅ Catbox upload successful:', imageUrl);
-                
+            if (imageUrl) {
+                messageData.imageUrl = imageUrl;
                 await database.ref('users/' + currentUserId + '/notifications').push(messageData);
                 
                 input.value = '';
@@ -1581,41 +1622,14 @@ async function sendMessage() {
                 sendBtn.innerHTML = '➤';
                 scrollToBottom();
             } else {
-                throw new Error('Upload failed: ' + imageUrl);
+                throw new Error('Could not upload image. Please try again.');
             }
         } catch (error) {
             console.error('Upload error:', error);
             closeCustomConfirm();
-            
-            // Try base64 fallback for small images
-            try {
-                const reader = new FileReader();
-                const base64Promise = new Promise((resolve, reject) => {
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(selectedImage);
-                });
-                
-                const base64Data = await base64Promise;
-                if (base64Data.length < 500000) { // Less than 500KB
-                    messageData.imageUrl = base64Data;
-                    await database.ref('users/' + currentUserId + '/notifications').push(messageData);
-                    
-                    input.value = '';
-                    input.style.height = 'auto';
-                    removeImage();
-                    sendBtn.disabled = false;
-                    sendBtn.innerHTML = '➤';
-                    scrollToBottom();
-                    return;
-                }
-            } catch (base64Error) {
-                console.warn('Base64 fallback failed:', base64Error);
-            }
-            
             showCustomConfirm(
                 '❌ Upload Failed',
-                'Error uploading image: ' + error.message + '\n\nTry using a smaller image (under 500KB).',
+                'Error uploading image: ' + error.message + '\n\nTry using a smaller image or different format.',
                 null,
                 false,
                 '❌'
