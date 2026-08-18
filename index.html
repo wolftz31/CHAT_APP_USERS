@@ -1104,738 +1104,685 @@
     </div>
 
     <script>
-    // ============================================================
-    // FIREBASE CONFIG
-    // ============================================================
-    const firebaseConfig = {
-        apiKey: "AIzaSyAUm-NXPXO_qsu2PnSNTPsdsWARBG1YDa8",
-        authDomain: "admin-assisant-wolftz.firebaseapp.com",
-        databaseURL: "https://admin-assisant-wolftz-default-rtdb.firebaseio.com",
-        projectId: "admin-assisant-wolftz",
-        storageBucket: "admin-assisant-wolftz.firebasestorage.app",
-        messagingSenderId: "555076040888",
-        appId: "1:555076040888:web:bc051a17b3b4f7ccbd5c4d",
-        measurementId: "G-CD5GY75WLT"
-    };
+    // Detect if running inside an Android WebView APK
+const isLocalApp = navigator.userAgent.includes('wv') || window.location.protocol === 'file:';
 
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-    const messaging = firebase.messaging();
+// Define asset paths
+const ASSET_BG = isLocalApp ? 'file:///android_asset/bg.png' : 'https://i.postimg.cc/6qqzF8HD/file-0000000056e88243b3ed55835552e8a8.png';
+const ASSET_AVATAR = isLocalApp ? 'file:///android_asset/header.png' : 'https://i.postimg.cc/1Rgpzyy3/ig.png';
+const ASSET_PROFILE = isLocalApp ? 'file:///android_asset/profile.png' : 'https://i.postimg.cc/VNzQSFZk/JPEG-20260506-131740-5426928668260112033.jpg';
 
-    // ============================================================
-    // STATE
-    // ============================================================
-    let currentUser = null;
-    let currentUserId = null;
-    let selectedImage = null;
-    let messageListener = null;
-    let currentUsername = '';
-    let isWebView = false;
 
-    // ============================================================
-    // USERNAME MANAGEMENT (Prevent Spam)
-    // ============================================================
-    function getSavedUsername() {
-        return localStorage.getItem('chatUsername');
-    }
-
-    function getSavedUserId() {
-        return localStorage.getItem('chatUserId');
-    }
-
-    function saveUser(username, userId) {
-        localStorage.setItem('chatUsername', username);
-        localStorage.setItem('chatUserId', userId);
-    }
-
-    function clearUserSession() {
-        localStorage.removeItem('chatUsername');
-        localStorage.removeItem('chatUserId');
-    }
-
-    // ============================================================
-    // DETECT IF IN WEBVIEW
-    // ============================================================
-    function detectWebView() {
-        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-        
-        if (userAgent.indexOf('wv') > -1) {
-            isWebView = true;
-            return true;
-        }
-        
-        if (window.webkit && window.webkit.messageHandlers) {
-            isWebView = true;
-            return true;
-        }
-        
-        if (!('serviceWorker' in navigator)) {
-            isWebView = true;
-            return true;
-        }
-        
-        return false;
-    }
-
-    // ============================================================
-    // FCM TOKEN (For WebView)
-    // ============================================================
-    async function getFCMToken() {
-        if (!isWebView) return null;
-        
-        try {
-            const vapidKey = 'BPlJYA1s0_02HLVDz2mkqSBCL91zGpuUBhyedZOop1nDM7TsuvXGixbdwXV7avC0payBHLG4DC9MA-rjzwlXYxo';
-            const token = await messaging.getToken({ vapidKey: vapidKey });
-            console.log('📱 FCM Token:', token);
-            
-            if (token && currentUserId) {
-                await database.ref('users/' + currentUserId + '/fcmTokens').push(token);
-            }
-            
-            return token;
-        } catch (error) {
-            console.log('FCM Error:', error);
-            return null;
-        }
-    }
-
-    // ============================================================
-    // PUSH NOTIFICATIONS SETUP
-    // ============================================================
-    function setupPushNotifications(userId) {
-        if (window.OneSignalDeferred && !isWebView) {
-            window.OneSignalDeferred.push(async function(OneSignal) {
-                await OneSignal.login(userId);
-                console.log('🔔 OneSignal enabled for user:', userId);
-                
-                const isSubscribed = await OneSignal.isPushNotificationsEnabled();
-                const prompt = document.getElementById('onesignal-prompt');
-                if (!isSubscribed) {
-                    prompt.classList.add('show');
-                } else {
-                    prompt.classList.remove('show');
-                }
-            });
-        }
-        
-        if (isWebView) {
-            setTimeout(function() {
-                getFCMToken();
-            }, 1000);
-        }
-    }
-
-    function subscribeToNotifications() {
-        if (window.OneSignalDeferred) {
-            window.OneSignalDeferred.push(async function(OneSignal) {
-                try {
-                    await OneSignal.registerForPushNotifications();
-                    document.getElementById('onesignal-prompt').classList.remove('show');
-                    document.getElementById('onesignal-subscribe').textContent = '✅ Notifications Enabled';
-                    document.getElementById('onesignal-subscribe').style.background = '#4caf50';
-                } catch(e) {
-                    alert('Failed to enable notifications: ' + e.message);
-                }
-            });
-        }
-    }
-
-    // ============================================================
-    // LOGIN - With Username Lock
-    // ============================================================
-    function login() {
-        var username = document.getElementById('usernameInput').value.trim();
-        var error = document.getElementById('loginError');
-
-        if (!username || username.length < 2) {
-            error.classList.add('show');
-            error.textContent = 'Please enter a valid username (min 2 characters)';
-            return;
-        }
-
-        error.classList.remove('show');
-        
-        var savedUsername = getSavedUsername();
-        var savedUserId = getSavedUserId();
-        
-        if (savedUsername && savedUserId) {
-            database.ref('users/' + savedUserId).once('value', function(snapshot) {
-                if (snapshot.exists() && snapshot.val().username === username) {
-                    currentUserId = savedUserId;
-                    currentUser = snapshot.val();
-                    currentUsername = username;
-                    
-                    localStorage.setItem('chatUserId', currentUserId);
-                    localStorage.setItem('chatUsername', username);
-                    
-                    document.getElementById('loginScreen').style.display = 'none';
-                    document.getElementById('chatInterface').classList.add('active');
-                    
-                    loadMessages();
-                    setupMessageListener();
-                    updateOnlineStatus();
-                    setupPushNotifications(currentUserId);
-                    return;
-                }
-            });
-        }
-        
-        database.ref('users').orderByChild('username').equalTo(username).once('value', function(snapshot) {
-            var users = snapshot.val();
-            
-            if (users) {
-                var userId = Object.keys(users)[0];
-                currentUserId = userId;
-                currentUser = users[userId];
-                currentUsername = username;
-                
-                saveUser(username, userId);
-                
-                document.getElementById('loginScreen').style.display = 'none';
-                document.getElementById('chatInterface').classList.add('active');
-                
-                loadMessages();
-                setupMessageListener();
-                updateOnlineStatus();
-                setupPushNotifications(currentUserId);
-            } else {
-                currentUserId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-                currentUser = { username: username };
-                currentUsername = username;
-                
-                database.ref('users/' + currentUserId).set({
-                    username: username,
-                    createdAt: new Date().toISOString()
-                });
-                
-                saveUser(username, currentUserId);
-                
-                document.getElementById('loginScreen').style.display = 'none';
-                document.getElementById('chatInterface').classList.add('active');
-                
-                loadMessages();
-                setupMessageListener();
-                updateOnlineStatus();
-                setupPushNotifications(currentUserId);
-            }
-        });
-    }
-
-    // ============================================================
-    // LOAD MESSAGES
-    // ============================================================
-    function loadMessages() {
-        var container = document.getElementById('messagesContainer');
-        container.innerHTML = '<div class="loading-messages">Loading messages...</div>';
-
-        if (!currentUserId) {
-            console.log('No user ID, waiting for login');
-            return;
-        }
-
-        database.ref('users/' + currentUserId + '/notifications').once('value', function(snapshot) {
-            var notifications = snapshot.val();
-            container.innerHTML = '';
-            
-            if (!notifications) {
-                showEmptyState();
-                return;
-            }
-
-            var messages = Object.entries(notifications);
-            if (messages.length === 0) {
-                showEmptyState();
-                return;
-            }
-
-            messages.sort(function(a, b) {
-                var timeA = new Date(a[1].timestamp || 0);
-                var timeB = new Date(b[1].timestamp || 0);
-                return timeA - timeB;
-            });
-
-            var lastDate = '';
-            messages.forEach(function(entry) {
-                var key = entry[0];
-                var msg = entry[1];
-                
-                var date = new Date(msg.timestamp || Date.now());
-                var dateStr = date.toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                });
-
-                if (dateStr !== lastDate) {
-                    lastDate = dateStr;
-                    var divider = document.createElement('div');
-                    divider.className = 'date-divider';
-                    divider.innerHTML = '<span>' + dateStr + '</span>';
-                    container.appendChild(divider);
-                }
-
-                var isAdmin = msg.adminMessage !== undefined;
-                
-                var messageEl = document.createElement('div');
-                messageEl.className = 'message ' + (isAdmin ? 'received' : 'sent');
-                messageEl.dataset.msgKey = key;
-                
-                messageEl.addEventListener('mousedown', function(e) {
-                    if (e.target.tagName !== 'IMG' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
-                        handleLongPress(e, key);
-                    }
-                });
-                messageEl.addEventListener('mouseup', cancelLongPress);
-                messageEl.addEventListener('mouseleave', cancelLongPress);
-                messageEl.addEventListener('touchstart', function(e) {
-                    if (e.target.tagName !== 'IMG' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
-                        handleLongPress(e, key);
-                    }
-                }, { passive: false });
-                messageEl.addEventListener('touchend', cancelLongPress, { passive: false });
-                messageEl.addEventListener('touchmove', cancelLongPress, { passive: false });
-                
-                var content = '';
-                if (msg.imageUrl) {
-                    content += '<div class="msg-image-container">' +
-                        '<img src="' + msg.imageUrl + '" class="msg-image" onclick="event.stopPropagation();viewImage(\'' + msg.imageUrl + '\')" onerror="this.style.display=\'none\'" alt="Image">' +
-                        '<button class="download-btn" onclick="event.stopPropagation();downloadImage(\'' + msg.imageUrl + '\')">⬇ Download</button>' +
-                    '</div>';
-                }
-                var displayText = isAdmin ? msg.adminMessage : msg.message;
-                if (displayText) {
-                    content += '<div class="msg-text">' + linkify(displayText) + '</div>';
-                }
-                content += '<div class="msg-time">' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + '</div>';
-                
-                messageEl.innerHTML = content;
-                container.appendChild(messageEl);
-            });
-
-            scrollToBottom();
-        });
-    }
-
-    function showEmptyState() {
-        var container = document.getElementById('messagesContainer');
-        container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#5a6a85;">' +
-            '<div style="font-size:48px;margin-bottom:16px;">💬</div>' +
-            '<div style="font-size:16px;font-weight:500;">No messages yet</div>' +
-            '<div style="font-size:13px;margin-top:6px;">Send a message to start the conversation</div>' +
-        '</div>';
-    }
-
-    // ============================================================
-    // SEND MESSAGE
-    // ============================================================
-    async function sendMessage() {
-        var input = document.getElementById('messageInput');
-        var text = input.value.trim();
-        
-        if (!text && !selectedImage) {
-            return;
-        }
-
-        var sendBtn = document.getElementById('sendBtn');
-        sendBtn.disabled = true;
-        sendBtn.innerHTML = '⏳';
-
-        var messageData = {
-            timestamp: new Date().toLocaleString(),
-            read: false
+    // Set images dynamically on page load
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('headerAvatar').src = ASSET_AVATAR;
+    document.getElementById('profileAvatar').src = ASSET_PROFILE;
+    
+    // Apply background to messages container dynamically
+    document.getElementById('messagesContainer').style.backgroundImage = `url('${ASSET_BG}')`;
+});
+    
+        // ============================================================
+        // FIREBASE CONFIG
+        // ============================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyAUm-NXPXO_qsu2PnSNTPsdsWARBG1YDa8",
+            authDomain: "admin-assisant-wolftz.firebaseapp.com",
+            databaseURL: "https://admin-assisant-wolftz-default-rtdb.firebaseio.com",
+            projectId: "admin-assisant-wolftz",
+            storageBucket: "admin-assisant-wolftz.firebasestorage.app",
+            messagingSenderId: "555076040888",
+            appId: "1:555076040888:web:bc051a17b3b4f7ccbd5c4d",
+            measurementId: "G-CD5GY75WLT"
         };
 
-        if (text) {
-            messageData.message = text;
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const messaging = firebase.messaging();
+
+        // ============================================================
+        // STATE
+        // ============================================================
+        let currentUser = null;
+        let currentUserId = null;
+        let selectedImage = null;
+        let messageListener = null;
+        let currentUsername = '';
+        let isWebView = false;
+
+
+        // ============================================================
+        // DETECT IF IN WEBVIEW
+        // ============================================================
+        function detectWebView() {
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+            
+            if (userAgent.indexOf('wv') > -1) {
+                isWebView = true;
+                return true;
+            }
+            
+            if (window.webkit && window.webkit.messageHandlers) {
+                isWebView = true;
+                return true;
+            }
+            
+            if (!('serviceWorker' in navigator)) {
+                isWebView = true;
+                return true;
+            }
+            
+            return false;
         }
 
-        if (selectedImage) {
+        // ============================================================
+        // FCM TOKEN (For WebView)
+        // ============================================================
+        async function getFCMToken() {
+            if (!isWebView) return null;
+            
             try {
-                var formData = new FormData();
-                formData.append('image', selectedImage);
+                const vapidKey = 'BPlJYA1s0_02HLVDz2mkqSBCL91zGpuUBhyedZOop1nDM7TsuvXGixbdwXV7avC0payBHLG4DC9MA-rjzwlXYxo';
+                const token = await messaging.getToken({ vapidKey: vapidKey });
+                console.log('📱 FCM Token:', token);
                 
-                var IMGBB_API_KEY = '5e227c108107599d3c5c45e12eb22bdb';
+                if (token && currentUserId) {
+                    await database.ref('users/' + currentUserId + '/fcmTokens').push(token);
+                }
                 
-                var response = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_API_KEY, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                var data = await response.json();
-                
-                if (data.success) {
-                    messageData.imageUrl = data.data.url;
-                    await database.ref('users/' + currentUserId + '/notifications').push(messageData);
+                return token;
+            } catch (error) {
+                console.log('FCM Error:', error);
+                return null;
+            }
+        }
+
+        // ============================================================
+        // PUSH NOTIFICATIONS SETUP
+        // ============================================================
+        function setupPushNotifications(userId) {
+            // 1. OneSignal (for browsers)
+            if (window.OneSignalDeferred && !isWebView) {
+                window.OneSignalDeferred.push(async function(OneSignal) {
+                    await OneSignal.login(userId);
+                    console.log('🔔 OneSignal enabled for user:', userId);
                     
+                    const isSubscribed = await OneSignal.isPushNotificationsEnabled();
+                    const prompt = document.getElementById('onesignal-prompt');
+                    if (!isSubscribed) {
+                        prompt.classList.add('show');
+                    } else {
+                        prompt.classList.remove('show');
+                    }
+                });
+            }
+            
+            // 2. FCM (for WebView)
+            if (isWebView) {
+                setTimeout(function() {
+                    getFCMToken();
+                }, 1000);
+            }
+        }
+
+        function subscribeToNotifications() {
+            if (window.OneSignalDeferred) {
+                window.OneSignalDeferred.push(async function(OneSignal) {
+                    try {
+                        await OneSignal.registerForPushNotifications();
+                        document.getElementById('onesignal-prompt').classList.remove('show');
+                        document.getElementById('onesignal-subscribe').textContent = '✅ Notifications Enabled';
+                        document.getElementById('onesignal-subscribe').style.background = '#4caf50';
+                    } catch(e) {
+                        alert('Failed to enable notifications: ' + e.message);
+                    }
+                });
+            }
+        }
+
+        // ============================================================
+        // LOGIN
+        // ============================================================
+        function login() {
+            var username = document.getElementById('usernameInput').value.trim();
+            var error = document.getElementById('loginError');
+
+            if (!username || username.length < 2) {
+                error.classList.add('show');
+                error.textContent = 'Please enter a valid username (min 2 characters)';
+                return;
+            }
+
+            error.classList.remove('show');
+            
+            database.ref('users').orderByChild('username').equalTo(username).once('value', function(snapshot) {
+                var users = snapshot.val();
+                
+                if (users) {
+                    var userId = Object.keys(users)[0];
+                    currentUserId = userId;
+                    currentUser = users[userId];
+                    currentUsername = username;
+                } else {
+                    currentUserId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                    currentUser = { username: username };
+                    currentUsername = username;
+                    database.ref('users/' + currentUserId).set({
+                        username: username,
+                        createdAt: new Date().toISOString()
+                    });
+                }
+
+                localStorage.setItem('chatUserId', currentUserId);
+                localStorage.setItem('chatUsername', username);
+
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('chatInterface').classList.add('active');
+                
+                loadMessages();
+                setupMessageListener();
+                updateOnlineStatus();
+                
+                setupPushNotifications(currentUserId);
+            });
+        }
+
+        // ============================================================
+        // LOAD MESSAGES
+        // ============================================================
+        function loadMessages() {
+            var container = document.getElementById('messagesContainer');
+            container.innerHTML = '<div class="loading-messages">Loading messages...</div>';
+
+            if (!currentUserId) {
+                console.log('No user ID, waiting for login');
+                return;
+            }
+
+            database.ref('users/' + currentUserId + '/notifications').once('value', function(snapshot) {
+                var notifications = snapshot.val();
+                container.innerHTML = '';
+                
+                if (!notifications) {
+                    showEmptyState();
+                    return;
+                }
+
+                var messages = Object.entries(notifications);
+                if (messages.length === 0) {
+                    showEmptyState();
+                    return;
+                }
+
+                messages.sort(function(a, b) {
+                    var timeA = new Date(a[1].timestamp || 0);
+                    var timeB = new Date(b[1].timestamp || 0);
+                    return timeA - timeB;
+                });
+
+                var lastDate = '';
+                messages.forEach(function(entry) {
+                    var key = entry[0];
+                    var msg = entry[1];
+                    
+                    var date = new Date(msg.timestamp || Date.now());
+                    var dateStr = date.toLocaleDateString('en-US', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                    });
+
+                    if (dateStr !== lastDate) {
+                        lastDate = dateStr;
+                        var divider = document.createElement('div');
+                        divider.className = 'date-divider';
+                        divider.innerHTML = '<span>' + dateStr + '</span>';
+                        container.appendChild(divider);
+                    }
+
+                    var isAdmin = msg.adminMessage !== undefined;
+                    
+                    var messageEl = document.createElement('div');
+                    messageEl.className = 'message ' + (isAdmin ? 'received' : 'sent');
+                    messageEl.dataset.msgKey = key;
+                    
+                    messageEl.addEventListener('mousedown', function(e) {
+                        if (e.target.tagName !== 'IMG' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
+                            handleLongPress(e, key);
+                        }
+                    });
+                    messageEl.addEventListener('mouseup', cancelLongPress);
+                    messageEl.addEventListener('mouseleave', cancelLongPress);
+                    messageEl.addEventListener('touchstart', function(e) {
+                        if (e.target.tagName !== 'IMG' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
+                            handleLongPress(e, key);
+                        }
+                    }, { passive: false });
+                    messageEl.addEventListener('touchend', cancelLongPress, { passive: false });
+                    messageEl.addEventListener('touchmove', cancelLongPress, { passive: false });
+                    
+                    var content = '';
+                    if (msg.imageUrl) {
+                        content += '<div class="msg-image-container">' +
+                            '<img src="' + msg.imageUrl + '" class="msg-image" onclick="event.stopPropagation();viewImage(\'' + msg.imageUrl + '\')" onerror="this.style.display=\'none\'" alt="Image">' +
+                            '<button class="download-btn" onclick="event.stopPropagation();downloadImage(\'' + msg.imageUrl + '\')">⬇ Download</button>' +
+                        '</div>';
+                    }
+                    var displayText = isAdmin ? msg.adminMessage : msg.message;
+                    if (displayText) {
+                        content += '<div class="msg-text">' + linkify(displayText) + '</div>';
+                    }
+                    content += '<div class="msg-time">' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + '</div>';
+                    
+                    messageEl.innerHTML = content;
+                    container.appendChild(messageEl);
+                });
+
+                scrollToBottom();
+            });
+        }
+
+        function showEmptyState() {
+            var container = document.getElementById('messagesContainer');
+            container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#5a6a85;">' +
+                '<div style="font-size:48px;margin-bottom:16px;">💬</div>' +
+                '<div style="font-size:16px;font-weight:500;">No messages yet</div>' +
+                '<div style="font-size:13px;margin-top:6px;">Send a message to start the conversation</div>' +
+            '</div>';
+        }
+
+        // ============================================================
+        // SEND MESSAGE
+        // ============================================================
+        async function sendMessage() {
+            var input = document.getElementById('messageInput');
+            var text = input.value.trim();
+            
+            if (!text && !selectedImage) {
+                return;
+            }
+
+            var sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '⏳';
+
+            var messageData = {
+                timestamp: new Date().toLocaleString(),
+                read: false
+            };
+
+            if (text) {
+                messageData.message = text;
+            }
+
+            if (selectedImage) {
+                try {
+                    var formData = new FormData();
+                    formData.append('image', selectedImage);
+                    
+                    var IMGBB_API_KEY = '5e227c108107599d3c5c45e12eb22bdb';
+                    
+                    var response = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_API_KEY, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    var data = await response.json();
+                    
+                    if (data.success) {
+                        messageData.imageUrl = data.data.url;
+                        await database.ref('users/' + currentUserId + '/notifications').push(messageData);
+                        
+                        input.value = '';
+                        input.style.height = 'auto';
+                        removeImage();
+                        sendBtn.disabled = false;
+                        sendBtn.innerHTML = '➤';
+                        scrollToBottom();
+                    } else {
+                        throw new Error(data.error?.message || 'Upload failed');
+                    }
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    alert('Error uploading image: ' + error.message);
+                    sendBtn.disabled = false;
+                    sendBtn.innerHTML = '➤';
+                }
+            } else {
+                try {
+                    await database.ref('users/' + currentUserId + '/notifications').push(messageData);
                     input.value = '';
                     input.style.height = 'auto';
                     removeImage();
                     sendBtn.disabled = false;
                     sendBtn.innerHTML = '➤';
                     scrollToBottom();
-                } else {
-                    throw new Error(data.error?.message || 'Upload failed');
+                } catch (error) {
+                    console.error('Database error:', error);
+                    alert('Error sending message: ' + error.message);
+                    sendBtn.disabled = false;
+                    sendBtn.innerHTML = '➤';
                 }
-            } catch (error) {
-                console.error('Upload error:', error);
-                alert('Error uploading image: ' + error.message);
-                sendBtn.disabled = false;
-                sendBtn.innerHTML = '➤';
-            }
-        } else {
-            try {
-                await database.ref('users/' + currentUserId + '/notifications').push(messageData);
-                input.value = '';
-                input.style.height = 'auto';
-                removeImage();
-                sendBtn.disabled = false;
-                sendBtn.innerHTML = '➤';
-                scrollToBottom();
-            } catch (error) {
-                console.error('Database error:', error);
-                alert('Error sending message: ' + error.message);
-                sendBtn.disabled = false;
-                sendBtn.innerHTML = '➤';
             }
         }
-    }
 
-    // ============================================================
-    // SETUP MESSAGE LISTENER
-    // ============================================================
-    function setupMessageListener() {
-        if (messageListener) {
-            database.ref('users/' + currentUserId + '/notifications').off();
-        }
-
-        messageListener = database.ref('users/' + currentUserId + '/notifications');
-        messageListener.on('child_added', function() {
-            loadMessages();
-        });
-
-        database.ref('users/' + currentUserId + '/typing').on('value', function(snapshot) {
-            var typing = snapshot.val();
-            var indicator = document.getElementById('typingIndicator');
-            if (typing) {
-                indicator.classList.add('active');
-            } else {
-                indicator.classList.remove('active');
+        // ============================================================
+        // SETUP MESSAGE LISTENER
+        // ============================================================
+        function setupMessageListener() {
+            if (messageListener) {
+                database.ref('users/' + currentUserId + '/notifications').off();
             }
-        });
-    }
 
-    // ============================================================
-    // IMAGE HANDLING
-    // ============================================================
-    function handleFileSelect(event) {
-        var file = event.target.files[0];
-        if (!file) return;
-        
-        if (!file.type.startsWith('image/')) {
-            alert('Please select an image file');
-            event.target.value = '';
-            return;
-        }
-        
-        if (file.size > 10 * 1024 * 1024) {
-            alert('Image size must be less than 10MB');
-            event.target.value = '';
-            return;
-        }
-        
-        selectedImage = file;
-        var preview = document.getElementById('imagePreview');
-        var previewImg = document.getElementById('previewImage');
-        var previewName = document.getElementById('previewFileName');
-        
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            previewImg.src = e.target.result;
-            previewName.textContent = file.name;
-            preview.classList.add('active');
-        };
-        reader.onerror = function() {
-            alert('Error reading image file');
-            selectedImage = null;
-        };
-        reader.readAsDataURL(file);
-        event.target.value = '';
-    }
+            messageListener = database.ref('users/' + currentUserId + '/notifications');
+            messageListener.on('child_added', function() {
+                loadMessages();
+            });
 
-    function removeImage() {
-        selectedImage = null;
-        document.getElementById('imagePreview').classList.remove('active');
-        document.getElementById('previewImage').src = '';
-        document.getElementById('previewFileName').textContent = 'image.jpg';
-    }
-
-    // ============================================================
-    // IMAGE VIEWER
-    // ============================================================
-    function viewImage(url) {
-        if (!url) return;
-        var viewer = document.getElementById('imageViewer');
-        var viewerImg = document.getElementById('viewerImage');
-        viewerImg.src = url;
-        viewer.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeImageViewer() {
-        var viewer = document.getElementById('imageViewer');
-        viewer.style.display = 'none';
-        document.getElementById('viewerImage').src = '';
-        document.body.style.overflow = '';
-    }
-
-    function downloadImage(url) {
-        window.open(url, '_blank');
-    }
-
-    // ============================================================
-    // UTILITY FUNCTIONS
-    // ============================================================
-    function scrollToBottom() {
-        var container = document.getElementById('messagesContainer');
-        setTimeout(function() {
-            container.scrollTop = container.scrollHeight;
-        }, 100);
-    }
-
-    function autoResize(textarea) {
-        textarea.style.height = 'auto';
-        textarea.style.height = Math.min(textarea.scrollHeight, 80) + 'px';
-    }
-
-    function handleEnter(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    }
-
-    function updateOnlineStatus() {
-        var status = document.getElementById('onlineStatus');
-        if (navigator.onLine) {
-            status.textContent = 'Online';
-            status.style.color = '#25d366';
-        } else {
-            status.textContent = 'Offline';
-            status.style.color = '#ff6b6b';
-        }
-    }
-
-    window.addEventListener('online', updateOnlineStatus);
-    window.addEventListener('offline', updateOnlineStatus);
-
-    // ============================================================
-    // LOGOUT - Clear Session
-    // ============================================================
-    function logout() {
-        showCustomConfirm(
-            'Logout?',
-            'Are you sure you want to logout?',
-            function() {
-                clearUserSession();
-                
-                if (messageListener) {
-                    database.ref('users/' + currentUserId + '/notifications').off();
-                    database.ref('users/' + currentUserId + '/typing').off();
-                }
-                
-                document.getElementById('chatInterface').classList.remove('active');
-                document.getElementById('loginScreen').style.display = 'flex';
-                document.getElementById('usernameInput').value = '';
-                
-                currentUserId = null;
-                currentUser = null;
-                currentUsername = null;
-                
-                console.log('👋 Logged out successfully');
-            },
-            false,
-            '👋'
-        );
-    }
-
-    function toggleEmoji() {
-        var emojis = ['😊', '😂', '❤️', '👍', '👋', '🔥', '💯', '✨', '🎉', '💪', '🤝', '🙏'];
-        var random = emojis[Math.floor(Math.random() * emojis.length)];
-        var input = document.getElementById('messageInput');
-        input.value += random;
-        input.focus();
-    }
-
-    // ============================================================
-    // LINKIFY
-    // ============================================================
-    function linkify(text) {
-        if (!text) return '';
-        var urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi;
-        return text.replace(urlRegex, function(url) {
-            var href = url;
-            if (!/^https?:\/\//i.test(url)) {
-                href = 'https://' + url;
-            }
-            return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color: #bf00ff; text-decoration: underline; word-break: break-all;">' + url + '</a>';
-        });
-    }
-
-    // ============================================================
-    // LONG PRESS DELETE
-    // ============================================================
-    var longPressTimer = null;
-
-    function handleLongPress(e, msgKey) {
-        e.preventDefault();
-        
-        if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-        }
-        
-        longPressTimer = setTimeout(function() {
-            confirmDeleteMessage(msgKey);
-        }, 600);
-    }
-
-    function cancelLongPress() {
-        if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-        }
-    }
-
-    function confirmDeleteMessage(msgKey) {
-        if (!currentUserId || !msgKey) {
-            showCustomConfirm('Error', 'Cannot delete: missing user or message', null, false, '❌');
-            return;
-        }
-        
-        showCustomConfirm(
-            'Delete Message?',
-            'This message will be permanently removed.',
-            function() {
-                var path = 'users/' + currentUserId + '/notifications/' + msgKey;
-                console.log('Deleting message:', msgKey);
-                
-                database.ref(path).remove()
-                    .then(function() {
-                        console.log('Message deleted successfully');
-                        loadMessages();
-                    })
-                    .catch(function(error) {
-                        console.error('Delete error:', error);
-                        showCustomConfirm('Error', 'Failed to delete: ' + error.message, null, false, '❌');
-                    });
-            },
-            true,
-            '🗑️'
-        );
-    }
-
-    // ============================================================
-    // CUSTOM CONFIRM DIALOG
-    // ============================================================
-    var confirmCallback = null;
-
-    function showCustomConfirm(title, message, onConfirm, isDanger, icon) {
-        isDanger = isDanger || false;
-        icon = icon || '⚠️';
-        
-        var overlay = document.getElementById('customConfirm');
-        document.getElementById('confirmTitle').textContent = title;
-        document.getElementById('confirmMessage').textContent = message;
-        document.getElementById('confirmIcon').textContent = icon;
-        
-        var confirmBtn = document.getElementById('confirmActionBtn');
-        confirmBtn.className = 'confirm-btn' + (isDanger ? ' danger' : '');
-        confirmBtn.textContent = isDanger ? 'Delete' : 'Confirm';
-        
-        confirmCallback = onConfirm;
-        overlay.classList.add('active');
-    }
-
-    function closeCustomConfirm() {
-        document.getElementById('customConfirm').classList.remove('active');
-        confirmCallback = null;
-    }
-
-    function executeCustomConfirm() {
-        if (confirmCallback) {
-            confirmCallback();
-        }
-        closeCustomConfirm();
-    }
-
-    document.addEventListener('click', function(e) {
-        var overlay = document.getElementById('customConfirm');
-        if (e.target === overlay) {
-            closeCustomConfirm();
-        }
-    });
-
-    // ============================================================
-    // PROFILE MODAL
-    // ============================================================
-    function openProfile() {
-        document.getElementById('profileOverlay').classList.add('active');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeProfile() {
-        document.getElementById('profileOverlay').classList.remove('active');
-        document.body.style.overflow = '';
-    }
-
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            closeProfile();
-        }
-    });
-
-    // ============================================================
-    // CHECK EXISTING SESSION
-    // ============================================================
-    document.addEventListener('DOMContentLoaded', function() {
-        detectWebView();
-        console.log('📱 Is WebView:', isWebView);
-        
-        var savedUserId = localStorage.getItem('chatUserId');
-        var savedUsername = localStorage.getItem('chatUsername');
-        
-        if (savedUserId && savedUsername) {
-            database.ref('users/' + savedUserId).once('value', function(snapshot) {
-                if (snapshot.exists()) {
-                    var userData = snapshot.val();
-                    if (userData.username === savedUsername) {
-                        currentUserId = savedUserId;
-                        currentUser = userData;
-                        currentUsername = savedUsername;
-                        
-                        document.getElementById('loginScreen').style.display = 'none';
-                        document.getElementById('chatInterface').classList.add('active');
-                        
-                        loadMessages();
-                        setupMessageListener();
-                        updateOnlineStatus();
-                        setupPushNotifications(currentUserId);
-                        
-                        console.log('✅ Auto-login successful for:', savedUsername);
-                    } else {
-                        clearUserSession();
-                        console.log('⚠️ Session invalid, clearing...');
-                    }
+            database.ref('users/' + currentUserId + '/typing').on('value', function(snapshot) {
+                var typing = snapshot.val();
+                var indicator = document.getElementById('typingIndicator');
+                if (typing) {
+                    indicator.classList.add('active');
                 } else {
-                    clearUserSession();
-                    console.log('⚠️ User not found, clearing session...');
+                    indicator.classList.remove('active');
                 }
             });
         }
-    });
 
-    console.log('💬 Chat initialized - Admin Support');
-</script>
+        // ============================================================
+        // IMAGE HANDLING
+        // ============================================================
+        function handleFileSelect(event) {
+            var file = event.target.files[0];
+            if (!file) return;
+            
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file');
+                event.target.value = '';
+                return;
+            }
+            
+            if (file.size > 10 * 1024 * 1024) {
+                alert('Image size must be less than 10MB');
+                event.target.value = '';
+                return;
+            }
+            
+            selectedImage = file;
+            var preview = document.getElementById('imagePreview');
+            var previewImg = document.getElementById('previewImage');
+            var previewName = document.getElementById('previewFileName');
+            
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                previewImg.src = e.target.result;
+                previewName.textContent = file.name;
+                preview.classList.add('active');
+            };
+            reader.onerror = function() {
+                alert('Error reading image file');
+                selectedImage = null;
+            };
+            reader.readAsDataURL(file);
+            event.target.value = '';
+        }
+
+        function removeImage() {
+            selectedImage = null;
+            document.getElementById('imagePreview').classList.remove('active');
+            document.getElementById('previewImage').src = '';
+            document.getElementById('previewFileName').textContent = 'image.jpg';
+        }
+
+        // ============================================================
+        // IMAGE VIEWER
+        // ============================================================
+        function viewImage(url) {
+            if (!url) return;
+            var viewer = document.getElementById('imageViewer');
+            var viewerImg = document.getElementById('viewerImage');
+            viewerImg.src = url;
+            viewer.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeImageViewer() {
+            var viewer = document.getElementById('imageViewer');
+            viewer.style.display = 'none';
+            document.getElementById('viewerImage').src = '';
+            document.body.style.overflow = '';
+        }
+
+        function downloadImage(url) {
+            window.open(url, '_blank');
+        }
+
+        // ============================================================
+        // UTILITY FUNCTIONS
+        // ============================================================
+        function scrollToBottom() {
+            var container = document.getElementById('messagesContainer');
+            setTimeout(function() {
+                container.scrollTop = container.scrollHeight;
+            }, 100);
+        }
+
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 80) + 'px';
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function updateOnlineStatus() {
+            var status = document.getElementById('onlineStatus');
+            if (navigator.onLine) {
+                status.textContent = 'Online';
+                status.style.color = '#25d366';
+            } else {
+                status.textContent = 'Offline';
+                status.style.color = '#ff6b6b';
+            }
+        }
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+
+        // ============================================================
+        // LOGOUT
+        // ============================================================
+        function logout() {
+            showCustomConfirm(
+                'Logout?',
+                'Are you sure you want to logout?',
+                function() {
+                    localStorage.removeItem('chatUserId');
+                    localStorage.removeItem('chatUsername');
+                    document.getElementById('chatInterface').classList.remove('active');
+                    document.getElementById('loginScreen').style.display = 'flex';
+                    document.getElementById('usernameInput').value = '';
+                    if (messageListener) {
+                        database.ref('users/' + currentUserId + '/notifications').off();
+                        database.ref('users/' + currentUserId + '/typing').off();
+                    }
+                    currentUserId = null;
+                },
+                false,
+                '👋'
+            );
+        }
+
+        function toggleEmoji() {
+            var emojis = ['😊', '😂', '❤️', '👍', '👋', '🔥', '💯', '✨', '🎉', '💪', '🤝', '🙏'];
+            var random = emojis[Math.floor(Math.random() * emojis.length)];
+            var input = document.getElementById('messageInput');
+            input.value += random;
+            input.focus();
+        }
+
+        // ============================================================
+        // LINKIFY
+        // ============================================================
+        function linkify(text) {
+            if (!text) return '';
+            var urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi;
+            return text.replace(urlRegex, function(url) {
+                var href = url;
+                if (!/^https?:\/\//i.test(url)) {
+                    href = 'https://' + url;
+                }
+                return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color: #bf00ff; text-decoration: underline; word-break: break-all;">' + url + '</a>';
+            });
+        }
+
+        // ============================================================
+        // LONG PRESS DELETE
+        // ============================================================
+        var longPressTimer = null;
+
+        function handleLongPress(e, msgKey) {
+            e.preventDefault();
+            
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+            
+            longPressTimer = setTimeout(function() {
+                confirmDeleteMessage(msgKey);
+            }, 600);
+        }
+
+        function cancelLongPress() {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+        }
+
+        function confirmDeleteMessage(msgKey) {
+            if (!currentUserId || !msgKey) {
+                showCustomConfirm('Error', 'Cannot delete: missing user or message', null, false, '❌');
+                return;
+            }
+            
+            showCustomConfirm(
+                'Delete Message?',
+                'This message will be permanently removed.',
+                function() {
+                    var path = 'users/' + currentUserId + '/notifications/' + msgKey;
+                    console.log('Deleting message:', msgKey);
+                    
+                    database.ref(path).remove()
+                        .then(function() {
+                            console.log('Message deleted successfully');
+                            loadMessages();
+                        })
+                        .catch(function(error) {
+                            console.error('Delete error:', error);
+                            showCustomConfirm('Error', 'Failed to delete: ' + error.message, null, false, '❌');
+                        });
+                },
+                true,
+                '🗑️'
+            );
+        }
+
+        // ============================================================
+        // CUSTOM CONFIRM DIALOG
+        // ============================================================
+        var confirmCallback = null;
+
+        function showCustomConfirm(title, message, onConfirm, isDanger, icon) {
+            isDanger = isDanger || false;
+            icon = icon || '⚠️';
+            
+            var overlay = document.getElementById('customConfirm');
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            document.getElementById('confirmIcon').textContent = icon;
+            
+            var confirmBtn = document.getElementById('confirmActionBtn');
+            confirmBtn.className = 'confirm-btn' + (isDanger ? ' danger' : '');
+            confirmBtn.textContent = isDanger ? 'Delete' : 'Confirm';
+            
+            confirmCallback = onConfirm;
+            overlay.classList.add('active');
+        }
+
+        function closeCustomConfirm() {
+            document.getElementById('customConfirm').classList.remove('active');
+            confirmCallback = null;
+        }
+
+        function executeCustomConfirm() {
+            if (confirmCallback) {
+                confirmCallback();
+            }
+            closeCustomConfirm();
+        }
+
+        document.addEventListener('click', function(e) {
+            var overlay = document.getElementById('customConfirm');
+            if (e.target === overlay) {
+                closeCustomConfirm();
+            }
+        });
+
+        // ============================================================
+        // PROFILE MODAL
+        // ============================================================
+        function openProfile() {
+            document.getElementById('profileOverlay').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeProfile() {
+            document.getElementById('profileOverlay').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeProfile();
+            }
+        });
+
+        // ============================================================
+        // CHECK EXISTING SESSION
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            detectWebView();
+            console.log('📱 Is WebView:', isWebView);
+            
+            var savedUserId = localStorage.getItem('chatUserId');
+            var savedUsername = localStorage.getItem('chatUsername');
+            if (savedUserId && savedUsername) {
+                currentUserId = savedUserId;
+                currentUsername = savedUsername;
+                database.ref('users/' + savedUserId).once('value', function(snapshot) {
+                    if (snapshot.exists()) {
+                        currentUser = snapshot.val();
+                        document.getElementById('loginScreen').style.display = 'none';
+                        document.getElementById('chatInterface').classList.add('active');
+                        loadMessages();
+                        setupMessageListener();
+                        updateOnlineStatus();
+                        
+                        setupPushNotifications(currentUserId);
+                    }
+                });
+            }
+        });
+
+        console.log('💬 Chat initialized - Admin Support');
+    </script>
 </body>
 </html>
