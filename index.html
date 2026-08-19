@@ -1018,6 +1018,46 @@
                 font-size: 16px;
             }
         }
+        
+        /* Disable text selection globally */
+* {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Allow selection in input fields (so users can still type) */
+input, textarea, [contenteditable="true"] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}
+
+/* Prevent selection of message text specifically */
+.message .msg-text {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    cursor: default;
+}
+
+.login-screen .logo {
+    /* Add a subtle pulse animation */
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 10px 40px rgba(37, 211, 102, 0.3); }
+    50% { transform: scale(1.05); box-shadow: 0 15px 60px rgba(37, 211, 102, 0.5); }
+}
+
+.login-screen h2 {
+    /* Add a subtle glow */
+    text-shadow: 0 0 30px rgba(37, 211, 102, 0.1);
+}
     </style>
 </head>
 <body>
@@ -1028,9 +1068,9 @@
             <h2>Chat with Support</h2>
             <p>Enter your username to start chatting</p>
             <div class="error" id="loginError">Please enter a valid username</div>
-            <input type="text" id="usernameInput" placeholder="Username" maxlength="20" autocomplete="off">
+            <input type="text" id="usernameInput" placeholder="andika username" maxlength="20" autocomplete="off">
             <button class="btn-primary" onclick="login()">Start Chatting</button>
-            <button class="btn-secondary" onclick="resetAccount()">🔄 Reset Account (Clear Saved Data)</button>
+           
         </div>
 
         <!-- Chat Interface -->
